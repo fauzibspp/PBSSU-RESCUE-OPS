@@ -1,0 +1,12 @@
+{
+  "purpose": "Records the OpenAPI fingerprint at the approved Sprint 3 contract freeze without rewriting the immutable M00/M01 baseline manifests.",
+  "approved_commit": "50233f511813d45837d237e260a0fb9d8a61d609",
+  "decision_date": "2026-11-07",
+  "files": {
+    "docs/api/openapi.json": "43ffccf3fd6be94a4602044df6d23339f824c3001efcb051d222f9d7688a284d"
+  },
+  "changes": [
+    "Records the Project Owner-approved Sprint 3 lifecycle, three-table/seven-operation contract, role-specific cancellation-reason projection, and append-only/no-purge constraints.",
+    "No API operation ID or permission key was added by the Sprint 3 contract freeze."
+  ]
+}

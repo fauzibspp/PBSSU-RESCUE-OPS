@@ -42,6 +42,18 @@ const freeze = JSON.parse(
 const contractDelta = JSON.parse(
   readFileSync(new URL("docs/testing/M01-CONTRACT-DELTA.json", root), "utf8"),
 ) as { files: Record<string, string> };
+const sprint3ContractDelta = JSON.parse(
+  readFileSync(
+    new URL("docs/testing/SPRINT-3-CONTRACT-DELTA.json", root),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint3DocumentationDelta = JSON.parse(
+  readFileSync(
+    new URL("docs/testing/SPRINT-3-DOCUMENTATION-DELTA.json", root),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
 const controllerSources = [
   readFileSync(
     new URL("apps/api/src/identity/identity.controller.ts", root),
@@ -150,7 +162,17 @@ describe("approved M01 contract boundary", () => {
         "\n",
       );
       const actual = createHash("sha256").update(source).digest("hex");
-      if (path in contractDelta.files) {
+      if (path in sprint3ContractDelta.files) {
+        expect(
+          sprint3ContractDelta.files[path],
+          `${path} approved Sprint 3 contract freeze`,
+        ).toBe(actual);
+      } else if (path in sprint3DocumentationDelta.files) {
+        expect(
+          sprint3DocumentationDelta.files[path],
+          `${path} approved Sprint 3 documentation delta`,
+        ).toBe(actual);
+      } else if (path in contractDelta.files) {
         expect(contractDelta.files[path], `${path} approved M01 delta`).toBe(
           actual,
         );

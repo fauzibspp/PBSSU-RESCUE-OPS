@@ -4,6 +4,7 @@ import type { Database } from "./connection.js";
 import * as foundation from "./migrations/001-foundation.js";
 import * as permissions from "./migrations/002-permission-catalog.js";
 import * as vehicles from "./migrations/003-vehicles.js";
+import * as incidents from "./migrations/004-incidents.js";
 
 export async function migrate(
   database: Database,
@@ -30,6 +31,7 @@ export async function migrate(
         "001-foundation": foundation,
         "002-permission-catalog": permissions,
         "003-vehicles": vehicles,
+        "004-incidents": incidents,
       }),
     },
   });
