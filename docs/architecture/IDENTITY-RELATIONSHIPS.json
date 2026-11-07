@@ -1,0 +1,1428 @@
+{
+  "document": "PBSSU-IDREL-001",
+  "version": "0.3.0",
+  "status": "APPROVED_LOGICAL_BASELINE_NOT_RUNTIME_EVIDENCE",
+  "scope": "Logical identity/foundation FK inventory plus tenant root links; operational FK details remain in DATABASE-SCHEMA.md. No DDL.",
+  "tables": {
+    "organizations": {
+      "scope": "TENANT_ROOT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "users": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "email_normalized"
+        ]
+      ]
+    },
+    "sessions": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "user_id",
+          "id"
+        ]
+      ]
+    },
+    "memberships": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ],
+        [
+          "organization_id",
+          "user_id"
+        ],
+        [
+          "organization_id",
+          "user_id",
+          "id"
+        ]
+      ]
+    },
+    "roles": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "permissions": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "role_permissions": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "membership_roles": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "vehicles": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incidents": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_locations": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_personnel": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_vehicles": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "movement_logs": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "situation_updates": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_media": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "agencies": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_agencies": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "incident_victims": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "report_counters": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "reports": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "report_approvals": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "audit_logs": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "sync_operations": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "change_events": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "organization_settings": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "notification_deliveries": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "outbox_jobs": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "password_credentials": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "session_refresh_tokens": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "token_hash"
+        ],
+        [
+          "user_id",
+          "id"
+        ],
+        [
+          "user_id",
+          "session_id",
+          "id"
+        ]
+      ]
+    },
+    "mfa_credentials": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "user_id",
+          "id"
+        ]
+      ]
+    },
+    "recovery_codes": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "auth_challenges": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "user_id",
+          "id"
+        ]
+      ]
+    },
+    "account_action_tokens": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "organization_invitations": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "invitation_roles": {
+      "scope": "TENANT",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "organization_id",
+          "id"
+        ]
+      ]
+    },
+    "identity_audit_logs": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "identity_delivery_jobs": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "platform_grants": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ]
+      ]
+    },
+    "credential_handoffs": {
+      "scope": "RESTRICTED_GLOBAL",
+      "primary_key": [
+        "id"
+      ],
+      "unique_keys": [
+        [
+          "id"
+        ],
+        [
+          "user_id",
+          "id"
+        ]
+      ]
+    }
+  },
+  "foreign_keys": [
+    {
+      "table": "memberships",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "roles",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "role_permissions",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "membership_roles",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "vehicles",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incidents",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_locations",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_personnel",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_vehicles",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "movement_logs",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "situation_updates",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_media",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "agencies",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_agencies",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "incident_victims",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "report_counters",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "reports",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "report_approvals",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "audit_logs",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "sync_operations",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "change_events",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "organization_settings",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "notification_deliveries",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "outbox_jobs",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "organization_invitations",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "invitation_roles",
+      "columns": [
+        "organization_id"
+      ],
+      "target": "organizations",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "password_credentials",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "sessions",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "session_refresh_tokens",
+      "columns": [
+        "user_id",
+        "session_id"
+      ],
+      "target": "sessions",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "session_refresh_tokens",
+      "columns": [
+        "user_id",
+        "session_id",
+        "parent_id"
+      ],
+      "target": "session_refresh_tokens",
+      "referenced_columns": [
+        "user_id",
+        "session_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "parent_id"
+      ]
+    },
+    {
+      "table": "mfa_credentials",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "recovery_codes",
+      "columns": [
+        "user_id",
+        "mfa_credential_id"
+      ],
+      "target": "mfa_credentials",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "auth_challenges",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "auth_challenges",
+      "columns": [
+        "user_id",
+        "session_id"
+      ],
+      "target": "sessions",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "session_id"
+      ]
+    },
+    {
+      "table": "auth_challenges",
+      "columns": [
+        "invitation_organization_id",
+        "invitation_id"
+      ],
+      "target": "organization_invitations",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": true,
+      "nullable_columns": [
+        "invitation_organization_id",
+        "invitation_id"
+      ]
+    },
+    {
+      "table": "account_action_tokens",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "user_id"
+      ]
+    },
+    {
+      "table": "account_action_tokens",
+      "columns": [
+        "invitation_organization_id",
+        "invitation_id"
+      ],
+      "target": "organization_invitations",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": true,
+      "nullable_columns": [
+        "invitation_organization_id",
+        "invitation_id"
+      ]
+    },
+    {
+      "table": "organization_invitations",
+      "columns": [
+        "bound_user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "bound_user_id"
+      ]
+    },
+    {
+      "table": "organization_invitations",
+      "columns": [
+        "organization_id",
+        "inviter_membership_id"
+      ],
+      "target": "memberships",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "inviter_membership_id"
+      ]
+    },
+    {
+      "table": "organization_invitations",
+      "columns": [
+        "platform_grant_id"
+      ],
+      "target": "platform_grants",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "platform_grant_id"
+      ]
+    },
+    {
+      "table": "invitation_roles",
+      "columns": [
+        "organization_id",
+        "invitation_id"
+      ],
+      "target": "organization_invitations",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "invitation_roles",
+      "columns": [
+        "organization_id",
+        "role_id"
+      ],
+      "target": "roles",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "memberships",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "membership_roles",
+      "columns": [
+        "organization_id",
+        "membership_id"
+      ],
+      "target": "memberships",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "membership_roles",
+      "columns": [
+        "organization_id",
+        "role_id"
+      ],
+      "target": "roles",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "role_permissions",
+      "columns": [
+        "organization_id",
+        "role_id"
+      ],
+      "target": "roles",
+      "referenced_columns": [
+        "organization_id",
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "role_permissions",
+      "columns": [
+        "permission_id"
+      ],
+      "target": "permissions",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "identity_audit_logs",
+      "columns": [
+        "actor_user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "actor_user_id"
+      ]
+    },
+    {
+      "table": "identity_audit_logs",
+      "columns": [
+        "subject_user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "subject_user_id"
+      ]
+    },
+    {
+      "table": "identity_delivery_jobs",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "user_id"
+      ]
+    },
+    {
+      "table": "identity_delivery_jobs",
+      "columns": [
+        "account_action_token_id"
+      ],
+      "target": "account_action_tokens",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "account_action_token_id"
+      ]
+    },
+    {
+      "table": "identity_delivery_jobs",
+      "columns": [
+        "mfa_credential_id"
+      ],
+      "target": "mfa_credentials",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "mfa_credential_id"
+      ]
+    },
+    {
+      "table": "platform_grants",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "platform_grants",
+      "columns": [
+        "permission_id"
+      ],
+      "target": "permissions",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "credential_handoffs",
+      "columns": [
+        "user_id"
+      ],
+      "target": "users",
+      "referenced_columns": [
+        "id"
+      ],
+      "nullable": false,
+      "all_or_none": false,
+      "nullable_columns": []
+    },
+    {
+      "table": "credential_handoffs",
+      "columns": [
+        "user_id",
+        "session_id"
+      ],
+      "target": "sessions",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "session_id"
+      ]
+    },
+    {
+      "table": "credential_handoffs",
+      "columns": [
+        "user_id",
+        "challenge_id"
+      ],
+      "target": "auth_challenges",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "challenge_id"
+      ]
+    },
+    {
+      "table": "credential_handoffs",
+      "columns": [
+        "user_id",
+        "mfa_credential_id"
+      ],
+      "target": "mfa_credentials",
+      "referenced_columns": [
+        "user_id",
+        "id"
+      ],
+      "nullable": true,
+      "all_or_none": false,
+      "nullable_columns": [
+        "mfa_credential_id"
+      ]
+    }
+  ],
+  "nullable_composite_rule": "Nullable local identifiers must be absent as a group; a mandatory subject/organization prefix remains non-null. MATCH SIMPLE requires explicit paired-proof CHECK/service guards, not blindly MATCH FULL on (mandatory_prefix, optional_id).",
+  "cross_row_rules": [
+    "same_user_session_proof_factor",
+    "one_active_factor",
+    "one_refresh_successor",
+    "first_admin_template_only",
+    "pending_membership_zero_grants",
+    "active_invite_recipient_and_current_delegation",
+    "atomic_success_audit",
+    "no_secret_projection",
+    "handoff_completed_proof_and_one_time_release",
+    "pending_delivery_session_has_no_authority",
+    "m01_mock_mail_synthetic_only"
+  ]
+}

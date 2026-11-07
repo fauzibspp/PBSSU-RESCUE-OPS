@@ -1,0 +1,14 @@
+import "reflect-metadata";
+import { Module } from "@nestjs/common";
+import { IdentityController } from "./identity/identity.controller.js";
+import { IdentityService } from "./identity/identity.service.js";
+import { OrganizationController } from "./organizations/organization.controller.js";
+import { OrganizationService } from "./organizations/organization.service.js";
+import { VehicleController } from "./vehicles/vehicle.controller.js";
+import { VehicleService } from "./vehicles/vehicle.service.js";
+
+@Module({
+  controllers: [IdentityController, OrganizationController, VehicleController],
+  providers: [IdentityService, OrganizationService, VehicleService],
+})
+export class AppModule {}
