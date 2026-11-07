@@ -1,0 +1,74 @@
+# Data dictionary
+
+PBSSU-DATA-001 v0.3.0, 2026-11-07; approved logical baseline, no physical migrations. '?' means nullable; common field rules below apply.
+
+## Common fields and classification
+
+Tenant common fields: `id uuid`, `organization_id uuid`, `created_at instant`; mutable entities also `updated_at instant`, `version int >=1`. Global tables omit organization_id. `created_by_membership_id? uuid` may be added on operational mutations; audit retains full actor provenance. Append-only evidence uses `occurred_at instant` (client assertion), `received_at instant` (server authority), and `actor_membership_id uuid`. Tenant FK rules from schema apply to every reference below.
+
+API projections of immutable evidence expose logical version 1 for consistent sync envelopes even where physical rows need no mutable version column. Report revision is a family ordinal, distinct from mutable row version. Assignment responses include personnel/vehicle assignment UUIDs; sync emits each assignment as its typed record and uses tombstones on release. Report responses optionally include the immutable approval object once decided.
+
+Classification: I = internal configuration; O = restricted operational; P = personal/sensitive; S = secrets/security. Daily backups inherit source sensitivity. All operational retention, media retention and legal holds remain Q-05; synthetic examples are the only development data. Provisional sync retention is explicitly separate from operational retention.
+
+| Entity | Domain fields, meanings and constraints | Class |
+| --- | --- | --- |
+| organizations | slug text unique normalized; name text; status ONBOARDING/ACTIVE/SUSPENDED; activated_at? instant | I |
+| users | email_normalized text unique; email_ciphertext text; email_verified_at? instant; status PENDING_VERIFICATION/ACTIVE/DISABLED; authentication_version int; no password or platform/tenant role column | P/S |
+| sessions | user_id uuid; client_kind WEB/MOBILE; status PENDING_DELIVERY/ACTIVE/REVOKED/EXPIRED; client_binding_hash text; auth_time instant; mfa_verified_at? instant; assurance PASSWORD/MFA; authentication_version int; last_seen_at/idle_expires_at/absolute_expires_at instant; revoked_at? instant | P/S |
+| memberships | user_id uuid; display_name text; contact_ciphertext? text; status PENDING_ACTIVATION/ACTIVE/INACTIVE; activated_at? instant; availability AVAILABLE/UNAVAILABLE | P |
+| roles | code text; name text; delegable boolean; platform authority forbidden | I |
+| permissions | code text unique exact operation key; domain PLATFORM/TENANT/IDENTITY_SELF/CREDENTIAL_ENTRY/ACTION_PROOF/BOUND_CHALLENGE/SESSION_REFRESH; valid_scopes enum set; requires_privileged_mfa boolean; sensitivity I/O/P | I |
+| role_permissions | role_id uuid; permission_id uuid; resource_scope TENANT/ASSIGNED; one scope per role/permission; catalog bounds enforced | I |
+| membership_roles | membership_id uuid; role_id uuid | I |
+| vehicles | call_sign text; registration_ciphertext? text; service_state AVAILABLE/MAINTENANCE/RETIRED; kind text | O/P |
+| incidents | title text; category FLOOD_MONITORING/FIRE/RESCUE/OTHER; status lifecycle enum; occurred_at instant; source_kind text; source_detail_ciphertext? text; outcome? text (required on completion); closed_at? instant | O/P |
+| incident_locations | incident_id uuid; label text; point? geography(Point,4326); accuracy_m? numeric >=0 paired with point; description? text | O |
+| incident_personnel | incident_id uuid; membership_id uuid; duty text; assigned_at instant; released_at? instant | O/P |
+| incident_vehicles | incident_id uuid; vehicle_id uuid; assigned_at instant; released_at? instant | O |
+| movement_logs | incident_id uuid; incident_vehicle_id uuid; location_id? uuid; kind DEPARTURE/ARRIVAL/RETURN/OTHER; occurred_at/received_at instant; actor_membership_id uuid; supersedes_id? uuid; note? text | O |
+| situation_updates | incident_id uuid; location_id uuid; actor_membership_id uuid; observation text; risk LOW/MODERATE/HIGH/UNKNOWN; point? geography; accuracy_m? numeric; occurred_at/received_at instant; supersedes_id? uuid | O |
+| incident_media | incident_id uuid; location_id? uuid; update_id? uuid; object_key text unique server-generated; mime_type text; byte_size bigint >0; sha256 text 64 hex; state PENDING_UPLOAD/QUARANTINED/READY/REJECTED; captured_at? instant; uploaded_by_membership_id uuid | O/P |
+| agencies | name text; agency_kind text; contact_ciphertext? text; local directory only | O/P |
+| incident_agencies | incident_id uuid; agency_id uuid; involvement_note text; evidence_reference? text; verified_acknowledged_at? instant only with verifiable evidence, no default | O |
+| incident_victims | incident_id uuid; details_ciphertext text; classification text; recorded_by_membership_id uuid; explicit access permission required | P |
+| report_counters | report_year smallint (local incident year); next_sequence bigint positive; row locked per allocation | I |
+| reports | incident_id uuid; report_year smallint; sequence bigint; report_number text derived; revision int; status DRAFT/SUBMITTED/APPROVED/REJECTED; snapshot jsonb; snapshot_schema_version int; snapshot_sha256 text; submitted_by_membership_id? uuid; submitted_at? instant; prior_report_id? uuid same incident | O/P |
+| report_approvals | report_id uuid; approver_membership_id uuid; decision APPROVED/REJECTED; reason? text required for rejection; decided_at instant; report_version int; snapshot_sha256 text | O/P |
+| audit_logs | actor_user_id? uuid (nullable only system); actor_membership_id? uuid; action text; resource_type text; resource_id? uuid; result SUCCESS/DENIED/FAILURE; correlation_id uuid; metadata jsonb redacted; occurred_at instant | O/P |
+| sync_operations | operation_id uuid client key; actor_user_id uuid; request_sha256 text; entity_id? uuid; outcome jsonb sanitized; status APPLIED/CONFLICT/REJECTED; expires_at instant; retryable infrastructure/dependency failures do not finalize receipts | O |
+| change_events | change_seq bigint internal order; entity_type text; entity_id uuid; entity_version int; tombstone boolean; visibility_scope jsonb; occurred_at instant | O |
+| organization_settings | key text allowlisted; value jsonb typed; no credentials | I |
+| notification_deliveries | incident_id? uuid; recipient_membership_id uuid; channel IN_APP; state PENDING/DELIVERED/FAILED; attempted_at? instant; error_code? text; internal app delivery only | O/P |
+| outbox_jobs | kind MEDIA_SCAN/REPORT_EXPORT/NOTIFICATION; resource_id uuid; deduplication_key text; state PENDING/RUNNING/SUCCEEDED/FAILED; attempts int >=0; lease_until? instant; last_error_code? text | O |
+
+| password_credentials | user_id uuid unique; password_hash text Argon2id PHC; changed_at/rehash_at instant; hash only, no plaintext password | P/S |
+| session_refresh_tokens | user_id/session_id uuid; parent_id? uuid same session/user; token_hash text unique; state ACTIVE/CONSUMED/REVOKED/EXPIRED; issued_at/expires_at instant; consumed_at/revoked_at? instant; raw token never retained | P/S |
+| mfa_credentials | user_id uuid; seed_ciphertext text; encryption_key_ref text; state PENDING/ACTIVE/RETIRED/REVOKED; last_accepted_step? bigint; confirmed_at/retired_at? instant; old active factor retained until replacement confirmed | P/S |
+| recovery_codes | user_id/mfa_credential_id uuid; code_hash text unique; used_at? instant; revoked_at? instant; no raw code; single use | P/S |
+| auth_challenges | user_id uuid; session_id? uuid; invitation_organization_id/invitation_id? paired uuid; purpose EMAIL_VERIFY/MFA_ENROLL/MFA_VERIFY/INVITATION_ACTIVATE/FACTOR_REPLACE/STEP_UP; client_binding_hash text; state PENDING/CONSUMED/EXPIRED/LOCKED/REVOKED; authentication_version int; password_verified_at/mfa_verified_at? instant; expires_at instant; attempts/max_attempts int; consumed_at? instant | P/S |
+| account_action_tokens | user_id? uuid; subject_email_digest text; purpose INVITATION/VERIFY_EMAIL/RESET_PASSWORD/CHANGE_EMAIL; token_hash text unique; invitation_organization_id/invitation_id? paired uuid (required only for INVITATION); authentication_version? int; target_email_ciphertext? text; expires_at instant; consumed_at/revoked_at? instant | P/S |
+| organization_invitations | kind FIRST_ADMIN/MEMBER; target_email_ciphertext/target_email_digest text; display_name text; bound_user_id? uuid; inviter_membership_id? uuid; platform_grant_id? uuid; status PENDING/ACCEPTED/AWAITING_MFA/ACTIVATED/EXPIRED/REVOKED; expires_at instant; accepted_at/activated_at? instant; common organization_id binds all intended roles | P/S |
+| invitation_roles | invitation_id uuid; role_id uuid; no active authorization until invitation activation; tenant compound FKs | I |
+| identity_audit_logs | actor_user_id/subject_user_id? uuid; action_code/result_code/reason_code allowlisted enum; resource_type/resource_id? metadata only; correlation_id uuid; occurred_at instant; no arbitrary payloads or request headers | P/S |
+| identity_delivery_jobs | user_id/account_action_token_id/mfa_credential_id? uuid; purpose INVITATION/VERIFY_EMAIL/RESET_PASSWORD/CHANGE_EMAIL/SECURITY_NOTICE; state PENDING/DISPATCHED/FAILED/EXPIRED; encrypted_envelope? text; key_ref? text; expires_at instant; attempts int; purge_at? instant; secret envelope erased after delivery/expiry; dispatch is not receipt/acknowledgement | P/S |
+| platform_grants | user_id uuid; permission_id uuid platform domain only; state ACTIVE/REVOKED; provisioned_at/revoked_at? instant; restricted audited bootstrap, never public tenant role field | P/S |
+
+| credential_handoffs | user_id uuid; session_id/challenge_id/mfa_credential_id? uuid with same-user FKs; purpose SESSION/TOTP_SETUP/RECOVERY_CODES; client_kind WEB/MOBILE; client_binding_hash text; authentication_version int; encrypted_material? text; key_ref? text; state READY/CONSUMED/EXPIRED/REVOKED; expires_at instant (SESSION <=60s, setup/code release <=5m); consumed_at? instant; envelope erased at consumption/expiry | S |
+
+## Contract types and report snapshot
+
+API UUID strings map to uuid; date-time strings require a UTC `Z` offset in requests; API `point` uses longitude then latitude with optional accuracy. The database stores validated coordinates as SRID 4326 geography. Version is an integer and is required as base_version on guarded commands. Request DTOs contain no organization_id, object_key, approver identity, actor identity, report number or server timestamps.
+
+Snapshot schema v1 includes organization display name, report number/revision, incident category/occurrence/source classification, authorized personnel display names and duties, vehicle call signs, chronological movements, six or more named monitoring locations as applicable, observations/risk, agency involvement as recorded, outcome, and source row versions. Victim section records presence/authorization status; private content is excluded from standard export. Approval block is composed from the immutable report_approvals record during export and includes approver display label, timestamp and digest. Snapshot freezes on submission; no regeneration from mutable live data after approval. Draft rendering is visibly watermarked and cannot use the approved-export endpoint.
+
+Output redaction is a whitelist projection, never a client-supplied list of fields to hide. Null means not recorded/not applicable as appropriate; it does not mean zero victims, no risk or agency acknowledgement. Do not infer facts from omitted evidence.
+
+## M00.2 identity projection rules
+
+The 40-entity dictionary and [schema](DATABASE-SCHEMA.md) are aligned approved logical design, not migrations. All identity secrets are absent from generic response schemas and all audit/error/page outputs; only the explicitly isolated C-02 handoff response can release its authorized material; request proofs/passwords/codes/client binding are writeOnly and never logged. writeOnly alone is not a sanitizer: explicit response allowlists and future negative serializer/log tests are required.
+
+Generic session responses expose session UUID, assurance, times and bound handoff metadata only. SESSION_HANDOFF_REQUIRED is not authenticated authority or proof of delivered credentials. Challenge UUID/enrollment UUID are correlation handles, not sufficient authentication: a client-generated high-entropy binding submitted during prior first-factor proof is required in the request header, and server checks purpose, user, authentication_version, expiry and attempt limit. A successor activation challenge replaces a consumed MFA challenge. Never reuse consumed proof as authorization.
+
+Refresh/action/recovery proofs are hash-only at rest except a short-lived encrypted delivery envelope when separate approved delivery is necessary. TOTP seeds must be encrypted, not hashed, because verification needs the secret. Key references and ciphertext remain restricted S. No generic API seed, otpauth URI, raw recovery-code or token projection exists. The [approved handoff contract](../security/CREDENTIAL-HANDOFF.md) alone declares sensitive custom-media release or web cookies. Password/hash/signing/key material is never released. C-02 is resolved by explicit policy/contract; M01 mock-only and production-provider gates remain.
+
+Root organizations gain ONBOARDING state; invitation intent and PENDING_ACTIVATION membership confer zero operational authority. Ordinary membership PATCH accepts INACTIVE only; fresh invitation/activation handles re-entry. Grant DTOs use explicit permission_id/resource_scope pairs rather than unscoped permission_ids. Privacy and operational report projections are unchanged.
