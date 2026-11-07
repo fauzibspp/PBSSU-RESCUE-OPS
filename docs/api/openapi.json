@@ -1525,7 +1525,7 @@
           "M05"
         ],
         "summary": "List tenant and assignment-authorized incidents.",
-        "description": "List tenant and assignment-authorized incidents. ",
+        "description": "List tenant and assignment-authorized incidents.  Cancellation reason is returned only in the full authorized tenant projection for Incident Commander and Control Room Operator. Field Responder projections omit the reason; Organization Admin and Platform Super Admin receive no automatic access. Reasons are excluded from generic logs, public telemetry, unauthorized notifications and unredacted errors.",
         "x-requirements": [
           "FR-007"
         ],
@@ -1615,7 +1615,7 @@
           "M05"
         ],
         "summary": "Create DRAFT incident; tenant/actor derived by server.",
-        "description": "Create DRAFT incident; tenant/actor derived by server. ",
+        "description": "Create a DRAFT incident; organization and actor are derived by the server. The incident, redacted audit record, and append-only change event commit atomically. This endpoint does not dispatch or notify external agencies.",
         "x-requirements": [
           "FR-007"
         ],
@@ -1623,10 +1623,13 @@
           "M05"
         ],
         "x-entities": [
-          "incidents"
+          "incidents",
+          "audit_logs",
+          "change_events"
         ],
         "x-tests": [
-          "T-007"
+          "T-007",
+          "T-022"
         ],
         "x-permission": "createIncident",
         "parameters": [
@@ -1698,7 +1701,7 @@
           "M05"
         ],
         "summary": "Read an authorized incident.",
-        "description": "Read an authorized incident. ",
+        "description": "Read an authorized incident.  Cancellation reason is returned only in the full authorized tenant projection for Incident Commander and Control Room Operator. Field Responder projections omit the reason; Organization Admin and Platform Super Admin receive no automatic access. Reasons are excluded from generic logs, public telemetry, unauthorized notifications and unredacted errors.",
         "x-requirements": [
           "FR-007"
         ],
@@ -1778,7 +1781,7 @@
           "M05"
         ],
         "summary": "Change incident title with version check; status is command-only.",
-        "description": "Change incident title with version check; status is command-only. ",
+        "description": "Change allowlisted descriptive incident fields only; lifecycle status is command-only. Requires base_version. A stale version returns 409 STALE_VERSION with no mutation; a successful update increments incident version exactly once and atomically appends its change event and redacted audit record.",
         "x-requirements": [
           "FR-007"
         ],
@@ -1786,10 +1789,13 @@
           "M05"
         ],
         "x-entities": [
-          "incidents"
+          "incidents",
+          "audit_logs",
+          "change_events"
         ],
         "x-tests": [
-          "T-007"
+          "T-007",
+          "T-022"
         ],
         "x-permission": "updateIncident",
         "parameters": [
@@ -1837,7 +1843,7 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/IncidentConflict"
           },
           "422": {
             "$ref": "#/components/responses/Error"
@@ -1869,8 +1875,8 @@
         "tags": [
           "M05"
         ],
-        "summary": "Apply online authorized lifecycle transition with guards and reason.",
-        "description": "Apply online authorized lifecycle transition with guards and reason. SRS defines transition graph. Cancellation/closure require commander. Assignment and arrival guards checked transactionally; stale base_version returns 409.",
+        "summary": "Apply an authorized, versioned incident lifecycle command.",
+        "description": "Q-02 lifecycle: DRAFT→OPEN→DISPATCHED→ON_SCENE→MONITORING→RETURNING→COMPLETED→CLOSED, plus ON_SCENE→RETURNING. In Sprint 3 only DRAFT→OPEN and CANCELLED from DRAFT/OPEN are supported. CANCELLED requires Incident Commander authority and a nonempty reason; CLOSED is Commander-only from COMPLETED; COMPLETED requires a nonempty outcome. CLOSED and CANCELLED cannot be reopened. DISPATCHED and assignment/arrival-dependent transitions return 409 PREREQUISITE_UNAVAILABLE until Sprint 4 supplies verified assignment/movement evidence. Other unsupported edges return 409 INVALID_TRANSITION. Every successful transition increments version exactly once and atomically appends one change event and one redacted audit record. Stale base_version returns 409 STALE_VERSION and performs no mutation. No external dispatch or acknowledgement is implied. Cancellation reason is restricted operational information, stored only in protected audit metadata and never in the append-only change-event payload.",
         "x-requirements": [
           "FR-007",
           "FR-017"
@@ -1880,11 +1886,13 @@
         ],
         "x-entities": [
           "incidents",
-          "audit_logs"
+          "audit_logs",
+          "change_events"
         ],
         "x-tests": [
           "T-007",
-          "T-017"
+          "T-017",
+          "T-022"
         ],
         "x-permission": "transitionIncident",
         "parameters": [
@@ -1932,7 +1940,7 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/IncidentConflict"
           },
           "422": {
             "$ref": "#/components/responses/Error"
@@ -1965,14 +1973,16 @@
           "M07"
         ],
         "summary": "Read incident's monitoring locations.",
-        "description": "Read incident's monitoring locations. ",
+        "description": "Read the incident's tenant-authorized, redacted location projection. The route is M07-owned and included as the location subresource in the Sprint 3 M05 incident delivery slice. It does not expose an independent change-event feed.",
         "x-requirements": [
           "FR-009"
         ],
         "x-modules": [
+          "M05",
           "M07"
         ],
         "x-entities": [
+          "incidents",
           "incident_locations"
         ],
         "x-tests": [
@@ -2064,19 +2074,23 @@
           "M07"
         ],
         "summary": "Create named monitoring location with optional validated GPS.",
-        "description": "Create named monitoring location with optional validated GPS. ",
+        "description": "Create a named incident location with optional validated point. Requires the parent incident base_version; atomically increments that incident version exactly once and appends one change event and one redacted audit record. A stale version returns 409 STALE_VERSION with no mutation. This M07-owned subresource is included in the Sprint 3 M05 delivery slice; no observation, live GPS tracking, or media workflow is implied.",
         "x-requirements": [
           "FR-009"
         ],
         "x-modules": [
+          "M05",
           "M07"
         ],
         "x-entities": [
           "incidents",
-          "incident_locations"
+          "incident_locations",
+          "audit_logs",
+          "change_events"
         ],
         "x-tests": [
-          "T-009"
+          "T-009",
+          "T-022"
         ],
         "x-permission": "createLocation",
         "parameters": [
@@ -2124,7 +2138,7 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/IncidentConflict"
           },
           "422": {
             "$ref": "#/components/responses/Error"
@@ -4349,7 +4363,7 @@
           "M13"
         ],
         "summary": "Read redacted tenant audit history with explicit permission.",
-        "description": "Read redacted tenant audit history with explicit permission. ",
+        "description": "Read redacted tenant audit history with explicit permission.  The response intentionally omits audit metadata, including cancellation reasons. Auditor access to the full cancellation reason requires a specifically authorized audit view and is deferred; this operation does not provide it.",
         "x-requirements": [
           "FR-022"
         ],
@@ -7278,8 +7292,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "PBSSU Rescue Ops API",
-    "version": "0.3.0",
-    "description": "Approved documentation baseline 2026-11-07; Q-01/Q-03/Q-04/C-02 approved policy, not runtime evidence. Generic identity responses contain metadata only. Sensitive material is confined to the explicitly documented one-time credential handoff. M01 synthetic/mock mail only; no production delivery authorized."
+    "version": "0.4.1",
+    "description": "Documentation contract freeze 2026-11-07. Q-01/Q-03/Q-04/C-02 and Q-02 policies Q02-1 through Q02-9 are owner-approved; approval is not runtime evidence or implementation authorization. Sprint 3 is frozen at three tables and seven operations. Generic identity responses contain metadata only. Sensitive material is confined to the explicitly documented one-time credential handoff. M01 synthetic/mock mail only; no production delivery authorized. Owner-approved Q-02 cancellation-reason visibility and append-only/no-purge constraints are documented; no extra API operation or permission is introduced. Q-05 retention remains open."
   },
   "servers": [
     {
@@ -8378,6 +8392,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "cancellation_reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "Optional redacted projection of the bounded cancellation reason. Returned only for authorized tenant Incident Commander and Control Room Operator reads; omitted for Field Responder, Organization Admin and Platform Super Admin. Auditor access is deferred to a separately approved authorized audit view."
           }
         },
         "required": [
@@ -8443,6 +8463,11 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "base_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Current parent incident version. The server compare-and-swaps this value and increments the parent incident version once on success."
+          },
           "label": {
             "type": "string",
             "minLength": 1,
@@ -8458,6 +8483,7 @@
           }
         },
         "required": [
+          "base_version",
           "label"
         ]
       },
@@ -11448,8 +11474,18 @@
       }
     },
     "responses": {
+      "IncidentConflict": {
+        "description": "Stable incident conflict codes: STALE_VERSION (includes current_version when disclosure is authorized), INVALID_TRANSITION, or PREREQUISITE_UNAVAILABLE. No conflict response mutates the incident, location, event, or audit state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "Error": {
-        "description": "Standard error: invalid request 400, unauthenticated 401, forbidden 403, absent/out-of-scope 404, version/idempotency conflict 409, expired sync cursor 410, invalid semantic command 422, throttled 429, retryable service failure 503.",
+        "description": "Standard error: invalid request 400, unauthenticated 401, forbidden 403, absent/out-of-scope 404, version/idempotency conflict 409, expired sync cursor 410, invalid semantic command 422, throttled 429, retryable service failure 503. Incident mutation 409 codes are STALE_VERSION, INVALID_TRANSITION, and PREREQUISITE_UNAVAILABLE as documented by IncidentConflict.",
         "content": {
           "application/json": {
             "schema": {

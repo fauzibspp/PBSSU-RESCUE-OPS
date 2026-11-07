@@ -12,9 +12,9 @@ PBSSU-RTM-001 v0.2 (M00.2 candidate freeze). Operation IDs resolve in [OpenAPI](
 | FR-004 | M02 | setMembershipRoles, listRoles, createRole, listPermissions, inviteMember, revokeInvitation, activateInvitation | memberships, membership_roles, roles, role_permissions, permissions, organizations, organization_invitations, invitation_roles, account_action_tokens, identity_delivery_jobs, audit_logs, identity_audit_logs, users, auth_challenges, mfa_credentials | T-004, T-003, T-005, T-023, T-001, T-002, T-024, T-025, T-026 |
 | FR-005 | M03, M02 | listPersonnel, updatePersonnel, inviteMember, acceptInvitation | memberships, audit_logs, organizations, organization_invitations, invitation_roles, roles, account_action_tokens, identity_delivery_jobs, identity_audit_logs, users, password_credentials, auth_challenges | T-005, T-003, T-004, T-023, T-001, T-002, T-024, T-025, T-026 |
 | FR-006 | M04 | listVehicles, createVehicle, updateVehicle | vehicles | T-006 |
-| FR-007 | M05 | listIncidents, createIncident, getIncident, updateIncident, transitionIncident | incidents, audit_logs | T-007, T-017 |
+| FR-007 | M05, M13 | listIncidents, createIncident, getIncident, updateIncident, transitionIncident | incidents, change_events, audit_logs | T-007, T-017, T-022, T-N01, T-N09, T-N10 |
 | FR-008 | M11 | createReportRevision | reports, report_counters | T-008, T-018, T-019 |
-| FR-009 | M07 | listLocations, createLocation | incident_locations, incidents | T-009 |
+| FR-009 | M05, M07, M13 | listLocations, createLocation | incidents, incident_locations, change_events, audit_logs | T-009, T-022, T-N01, T-N09, T-N10 |
 | FR-010 | M06 | getAssignments, setAssignments | incident_personnel, incident_vehicles, incidents, memberships, vehicles | T-010 |
 | FR-011 | M09 | listMovements, createMovement | movement_logs, incident_vehicles | T-011 |
 | FR-012 | M08 | listObservations, createObservation | situation_updates, incident_locations | T-012 |
@@ -47,6 +47,12 @@ PBSSU-RTM-001 v0.2 (M00.2 candidate freeze). Operation IDs resolve in [OpenAPI](
 ## Cross-cutting constraints
 
 Every operation additionally requires T-N01 authorization/isolation checks, T-N09 contract validation and T-N10 redaction checks where applicable. All domain mutations write audit and change/outbox records as appropriate even when these supporting tables are not repeated in every feature row. Agency directory/involvement supports FR-018 without implying acknowledgement. Victim storage is reserved, with entry API deferred to Q-09; reports/exports do not expose private victim fields. M14 settings supports FR-001 and FR-022. Requirements have design coverage; no implementation or passing application-test coverage is claimed.
+
+## Approved Sprint 3 cross-module contract freeze
+
+Owner approval Q-02 on 2026-11-07 freezes exactly three new tables (`incidents`, `incident_locations`, `change_events`) and seven new operations (`listIncidents`, `createIncident`, `getIncident`, `updateIncident`, `transitionIncident`, `listLocations`, `createLocation`); implementation is not authorized. Incident operations are M05-owned. Location operations remain M07-owned subresources and are included in the Sprint 3 delivery slice, with M05 parent-incident authorization/version checks and M13 audit/change-event controls. The OpenAPI operation IDs remain permission keys; this freeze adds no permission key or role grant.
+
+Approved Decision A and B (2026-11-07) trace cancellation-reason projection and append-only/no-purge constraints through FR-007/FR-009/FR-022 and NFR-003/NFR-010; operations `listIncidents`, `getIncident`, `transitionIncident`, `listAuditLogs`; entities `incidents`, `audit_logs`, `change_events`; tests T-007, T-017, T-022, T-N03, T-N10. Full reason is restricted to authorized Commander/Operator incident reads; responder is minimized; Org Admin/Platform have no automatic access. Auditor reason access has no current API projection (`listAuditLogs` omits metadata) and is a deferred contract dependency. No API, permission or role grant is added. Append-only writes/corrections and no Sprint 3 purge are checked under Q-05 OPEN; no indefinite-retention policy is inferred.
 
 
 ## M00.2 identity security traceability

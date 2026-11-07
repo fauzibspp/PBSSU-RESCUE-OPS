@@ -21,8 +21,8 @@ No cascading operational deletion. Membership/user/vehicle deactivation preserve
 | role_permissions | Tenant; composite role FK, global permission FK; UNIQUE(org,role,permission); resource_scope TENANT/ASSIGNED constrained by catalog. |
 | membership_roles | Tenant extension; composite membership/role FKs; UNIQUE(org,membership,role). |
 | vehicles | Tenant; UNIQUE(org,call_sign); service state. |
-| incidents | Tenant; state/category/time/outcome/version; optional encrypted source detail. |
-| incident_locations | Tenant; composite incident FK; UNIQUE(org,incident,id), optional geography(Point,4326). |
+| incidents | Tenant; state/category/time/outcome/version; optional encrypted source detail. All lifecycle changes are command-only compare-and-swap operations; completion outcome and cancellation reason are mandatory for the applicable commands. |
+| incident_locations | Tenant; composite incident FK; UNIQUE(org,incident,id), optional geography(Point,4326). `createLocation` requires the parent incident base_version and increments it exactly once in the same transaction. |
 | incident_personnel | Tenant; composite incident/member FKs; UNIQUE(org,incident,member); role, assignment/release times. |
 | incident_vehicles | Tenant; composite incident/vehicle FKs; UNIQUE(org,incident,vehicle); UNIQUE(org,incident,id). |
 | movement_logs | Tenant append-only; matching incident/vehicle-assignment tuple; optional matching location tuple; correction FK same incident. |
@@ -36,7 +36,7 @@ No cascading operational deletion. Membership/user/vehicle deactivation preserve
 | report_approvals | Tenant immutable decision; composite report/member FKs; UNIQUE(org,report_id); decision/version/snapshot digest. |
 | audit_logs | Tenant append-only; actor identity, action/result/resource UUID and redacted metadata. |
 | sync_operations | Tenant; UNIQUE(org,actor_user_id,operation_id); request hash/outcome/expiry; one transaction with mutation. |
-| change_events | Tenant extension; increasing internal change_seq; entity/tombstone and visibility scope for pull. |
+| change_events | Sprint 3 tenant append-only event foundation; UNIQUE(org,change_seq); composite incident FK and optional composite incident/location FK; only incident and incident-location event types in this increment. RLS/FORCE RLS; runtime INSERT/SELECT only, no UPDATE/DELETE. No direct API feed in Sprint 3. |
 | organization_settings | Tenant; UNIQUE(org,key); typed allowlisted value/version, no secrets. |
 | notification_deliveries | Tenant; composite incident FK where present; internal delivery attempts only, not agency acknowledgement. |
 | outbox_jobs | Tenant extension; job kind/reference/deduplication key/status/lease; UNIQUE(org,deduplication_key). |
@@ -93,6 +93,8 @@ erDiagram
   organizations ||--o{ vehicles : owns
   organizations ||--o{ incidents : owns
   incidents ||--o{ incident_locations : monitors
+  incidents ||--o{ change_events : changes
+  incident_locations |o--o{ change_events : changes
   incidents ||--o{ incident_personnel : assigns
   memberships ||--o{ incident_personnel : serves
   incidents ||--o{ incident_vehicles : assigns
@@ -121,6 +123,8 @@ erDiagram
 
 Indexes: incidents `(organization_id,status,occurred_at DESC,id)`; observations/movements `(organization_id,incident_id,occurred_at,id)`; reports `(organization_id,incident_id,revision)`; change events `(organization_id,change_seq)`; audit `(organization_id,created_at,id)`; sync unique key; GiST on location/update points for scoped spatial queries. Nullable location means no location supplied, never a synthetic zero coordinate.
 
+Q-02 contract constraints: `change_events` rows are append-only, tenant-sequenced and limited in Sprint 3 to incident and incident-location entities. Their parent references must be tenant-composite; location events must reference the same incident/location tuple. Event rows contain only allowlisted entity type/id/version/event kind and ordering metadata, not full incident/location payloads, free-text reasons, victim/contact fields or secrets. Actor, authorization result and a bounded cancellation reason are recorded in the protected redacted audit record. Event reads have no standalone Sprint 3 operation and may only be projected through an operation that already authorizes the parent entity. Incident/location writes, their event row and audit row commit or roll back atomically.
+
 Enforce allowed state/risk enums, latitude/longitude validation before geography conversion, positive versions, report sequence/revision >0, paired GPS coordinates and movement correction consistency. Report status transitions, submitted snapshot immutability and approval uniqueness require database protections plus service transactions; immutable tables grant INSERT/SELECT only to runtime, with narrowly scoped system state updates for media/sync delivery.
 
 Report database guards must also enforce that revision 1 has no predecessor and owns its allocated reference, later revisions name the immediately preceding version of that same incident, and report_year/sequence/report_number never change across the family. Service checks alone do not replace these invariants. Approval freezes decision provenance; API report reads include the separate immutable approval record when present.
@@ -144,3 +148,7 @@ See [identity lifecycle](../api/IDENTITY-LIFECYCLE.md) and [authentication](../s
 ## Approved handoff storage
 
 credential_handoffs stores user_id, optional same-user session_id/challenge_id/mfa_credential_id, purpose, original client_kind, authentication_version, client_binding_hash, encrypted_material/key_ref, expiry and one-way consumption/revocation state. Add UNIQUE(user_id,id) on auth_challenges for same-subject references. Require a valid proof source for each purpose and at most one READY handoff per source/purpose; invalidate old pending material on regeneration. PENDING_DELIVERY sessions grant no API authority until successful SESSION redemption. Consumption/purge and redacted identity audit commit atomically; no raw material replay or generic secret query endpoint. Mock mail carries invitation/reset proof only; no MFA seed/code email and no real outbound in M01.
+
+## Approved Q-02 sensitive-field and retention constraints
+
+Cancellation reasons are stored only in protected, allowlisted audit metadata, never in `change_events` or generic incident text fields. The `listIncidents` and `getIncident` projections may include the full bounded reason only for authorized Incident Commander and Control Room Operator reads; Field Responder projections omit it and retain status/minimum operational data; Organization Admin and Platform Super Admin have no automatic access. Read-Only Auditor access must use a specifically authorized audit view. Existing `listAuditLogs` has a redacted response without metadata and does not qualify; this remains a deferred contract dependency and adds no Sprint 3 API/permission. Generic logs, public telemetry, unauthorized notifications and unredacted errors must omit the reason. Ordinary operational APIs cannot update/delete audit records or change events; corrections append new authorized events. No automatic purge/scheduler is in Sprint 3. Q-05 is OPEN; this rule does not approve indefinite retention. Any future disposal, anonymization, legal retention or archival requires separate approved policy and implementation.

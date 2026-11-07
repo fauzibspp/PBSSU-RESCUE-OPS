@@ -1,0 +1,98 @@
+{
+  "manifest": "PBSSU-SPRINT-3-SCOPE",
+  "version": "1.1.0",
+  "decision_date": "2026-11-07",
+  "decision_authority": "Project Owner",
+  "approval": "Q-02 Q02-1 through Q02-9, cancellation-reason visibility decision, append-only/no-purge decision, and Sprint 3 contract inventory approved by Project Owner on 2026-11-07 for documentation/contract freeze only",
+  "implementation_authorized": false,
+  "baseline": {
+    "m01": "fe5cbec0d2947bc0b8c0f87856e4f7e4f4fbf5b7",
+    "sprint_2": "bfeb7c381bc06038aa75a3bd8863068cbfee1931",
+    "branch": "feat/sprint-2-vehicle-backend"
+  },
+  "new_tables": [
+    "incidents",
+    "incident_locations",
+    "change_events"
+  ],
+  "new_api_operations": [
+    "listIncidents",
+    "createIncident",
+    "getIncident",
+    "updateIncident",
+    "transitionIncident",
+    "listLocations",
+    "createLocation"
+  ],
+  "operation_ownership": {
+    "listIncidents": [
+      "M05"
+    ],
+    "createIncident": [
+      "M05"
+    ],
+    "getIncident": [
+      "M05"
+    ],
+    "updateIncident": [
+      "M05"
+    ],
+    "transitionIncident": [
+      "M05"
+    ],
+    "listLocations": [
+      "M05",
+      "M07"
+    ],
+    "createLocation": [
+      "M05",
+      "M07"
+    ]
+  },
+  "dependencies": [
+    "M01 tenant identity, authentication, RBAC, transaction-scoped tenant context, RLS/FORCE RLS, audit and migration infrastructure",
+    "Sprint 2 tenant vehicle register, vehicle service states and authorization foundation",
+    "Q-01 exact permission and role matrix",
+    "Q-02 Q02-1 through Q02-9 approved operational policy",
+    "Sprint 4 assignment and movement evidence is required before DISPATCHED and assignment/arrival-dependent transitions can succeed"
+  ],
+  "sprint_3_transition_gate": {
+    "supported": [
+      "DRAFT->OPEN",
+      "DRAFT->CANCELLED",
+      "OPEN->CANCELLED"
+    ],
+    "deferred_until_sprint_4_evidence": [
+      "DISPATCHED",
+      "assignment-dependent transitions",
+      "arrival-dependent transitions",
+      "post-dispatch cancellation/resource release"
+    ],
+    "unsupported_response_codes": [
+      "STALE_VERSION",
+      "INVALID_TRANSITION",
+      "PREREQUISITE_UNAVAILABLE"
+    ]
+  },
+  "approved_data_handling": {
+    "cancellation_reason": "Restricted operational information. Full reason for authorized tenant Incident Commander and Control Room Operator projections; responders receive status and minimum operational information. Organization Admin and Platform Super Admin have no automatic access. Auditor full reason requires a specifically authorized audit view; current listAuditLogs response is redacted and does not provide it. No new operation or permission is added; this is a deferred contract dependency.",
+    "redaction": "Never expose cancellation reason in generic logs, public telemetry, unauthorized notifications, or unredacted errors.",
+    "event_audit_mutability": "Append-only through ordinary operational APIs; corrections use new authorized events.",
+    "automatic_purge": false,
+    "retention_policy": "Q-05 OPEN; no indefinite-retention approval. Any deletion, anonymization, legal retention, or archival requires separately approved policy and implementation."
+  },
+  "exclusions": [
+    "incident assignments and dispatch implementation",
+    "vehicle breakdown/release/reassignment workflow",
+    "movement logs",
+    "observations and risk monitoring",
+    "GPS tracking",
+    "media upload/storage",
+    "offline synchronization",
+    "reports and report approval",
+    "dashboards and web/mobile clients",
+    "external agency notification or acknowledgement",
+    "production deployment and recovery claims"
+  ],
+  "implementation_gate": "Requires separate explicit owner authorization after review of this contract freeze and remaining ambiguities"
+}

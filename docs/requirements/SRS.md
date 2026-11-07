@@ -1,6 +1,6 @@
 # Software Requirements Specification
 
-Document PBSSU-SRS-001, version 0.3.0, 2026-11-07; approved foundation policy. Source: [blueprint](../planning/PROJECT-BLUEPRINT.md) and [owner approval](../planning/STAKEHOLDER-APPROVAL-2026-11-07.md). Acceptance criteria define future tests, not executed results.
+Document PBSSU-SRS-001, version 0.4.1, 2026-11-07; Q-02 policies Q02-1 through Q02-9 and final cancellation-reason/append-only decisions approved by the Project Owner for documentation/contract freeze. Sprint 3 implementation remains unauthorized. Source: [blueprint](../planning/PROJECT-BLUEPRINT.md), [owner approval record](../planning/DECISION-REGISTER.md#q-02-operational-policy-approval-record). Acceptance criteria define future tests, not executed results.
 
 ## Scope and actors
 
@@ -20,9 +20,9 @@ Exclude AI predictions, continuous live tracking, public emergency alerts, offic
 | FR-004 | Tenant roles and permissions | Admin delegates only allowed exact permission/scope grants, never platform/self escalation. Pending memberships cannot become active by PATCH or role assignment. |
 | FR-005 | Personnel records | Admin creates/updates tenant member profiles; private fields are absent from unauthorized views. |
 | FR-006 | Vehicle register | Tenant admin maintains vehicles with tenant-unique call signs; other tenants cannot query them. |
-| FR-007 | Incident management | Authorized staff create/edit versioned incidents and apply only permitted lifecycle transitions. |
+| FR-007 | Incident management | Authorized staff create/open versioned incidents, update descriptive fields only, and apply only Q-02-approved transitions with base_version. Status is command-only; Sprint 3 does not permit assignment/arrival-dependent transitions until Sprint 4 evidence exists. |
 | FR-008 | Organization/year report reference | First report draft atomically allocates a unique organization/year sequence; concurrent requests never duplicate it. |
-| FR-009 | Multiple incident locations | One incident accepts six independently identified locations; cross-incident and cross-tenant references fail. |
+| FR-009 | Multiple incident locations | One incident accepts multiple independently identified locations; create requires the parent incident base_version and atomically increments it; cross-incident and cross-tenant references fail. Location operations retain M07 ownership while being included in the Sprint 3 M05 delivery slice. |
 | FR-010 | Responder/vehicle assignment | Explicit authorized online action assigns active members and eligible vehicles to the incident, audited without external dispatch. |
 | FR-011 | Movement events | Assigned vehicle events preserve departure/arrival/return occurrence and receipt times; corrections append a superseding event. |
 | FR-012 | Observations and risks | Assigned responders append observations against assigned incidents/locations with occurrence time and risk level. |
@@ -30,7 +30,7 @@ Exclude AI predictions, continuous live tracking, public emergency alerts, offic
 | FR-014 | Offline field entry | Encrypted local outbox survives restart; unconfirmed changes visibly remain pending. |
 | FR-015 | Duplicate-free synchronization | Replaying the same operation returns its stored outcome and creates no duplicate domain record. |
 | FR-016 | Conflict resolution | Stale base version returns conflict; user reviews current record and submits a new operation; no silent overwrite. |
-| FR-017 | Incident closure | Commander closes only COMPLETED incidents with recorded outcome/reason and current version; report approval is separate. |
+| FR-017 | Incident closure | Commander closes only COMPLETED incidents after review and current-version validation; completion requires nonempty outcome. CLOSED and CANCELLED cannot be reopened in the MVP; report approval is separate. |
 | FR-018 | Structured reports | Draft snapshots include required operational sections and provenance; missing victim/agency data is marked not recorded, not inferred. |
 | FR-019 | Report approval/versioning | Online commander decision locks submitted snapshot; approved revisions cannot change; corrections use a new version. |
 | FR-020 | Approved exports | Authorized users obtain PDF or WhatsApp-compatible redacted text from an approved snapshot; export does not send a message. |
@@ -56,7 +56,11 @@ These targets have been reviewed for design feasibility only. No benchmark, rest
 
 ## State machines and rules
 
-Incident normal path: DRAFT → OPEN → DISPATCHED → ON_SCENE → MONITORING → RETURNING → COMPLETED → CLOSED. Proposed explicit alternative ON_SCENE → RETURNING permits non-monitoring incidents; Q-02 must approve it before implementation. Cancellation transitions to CANCELLED from DRAFT/OPEN/DISPATCHED/ON_SCENE/MONITORING/RETURNING require authorized command action and reason; no cancellation from COMPLETED/CLOSED. No backward transition or reopening in MVP. DISPATCHED requires at least one member and vehicle assignment; ON_SCENE requires arrival evidence; COMPLETED requires outcome; CLOSED requires commander review. These guards are proposals requiring operational sign-off. An incident can be COMPLETED/CLOSED while its report awaits approval.
+**Q-02 APPROVED 2026-11-07:** lifecycle path DRAFT → OPEN → DISPATCHED → ON_SCENE → MONITORING → RETURNING → COMPLETED → CLOSED, plus ON_SCENE → RETURNING. In Sprint 3, only DRAFT → OPEN and CANCELLED from DRAFT/OPEN are enabled; DISPATCHED and all assignment/arrival-dependent transitions are rejected with `409 PREREQUISITE_UNAVAILABLE` until Sprint 4 provides verified evidence. Unsupported edges return `409 INVALID_TRANSITION`. Cancellation from DRAFT/OPEN requires Incident Commander authority and a nonempty reason. Post-dispatch cancellation waits for a future approved resource-release workflow. COMPLETED requires a nonempty outcome; CLOSED requires Incident Commander review. CLOSED and CANCELLED cannot be reopened in MVP. `updateIncident` cannot alter lifecycle state. A successful transition increments incident version exactly once and atomically writes one append-only change event and one redacted audit record. Stale `base_version` returns `409 STALE_VERSION` with current version where disclosed and no mutation. An incident may be COMPLETED/CLOSED while its report awaits a separate approval workflow.
+
+Sprint 3 scope is frozen for contract planning at exactly three new tables (`incidents`, `incident_locations`, `change_events`) and seven operations (`listIncidents`, `createIncident`, `getIncident`, `updateIncident`, `transitionIncident`, `listLocations`, `createLocation`). This is not implementation authorization. Location creation requires the parent incident `base_version`, increments the parent version exactly once, and atomically writes its change event and audit record. Event and location reads require tenant authorization and redacted projections; no standalone change-event API is in Sprint 3.
+
+**Approved cancellation-reason visibility (2026-11-07):** Full reason is available only in authorized tenant incident projections to Incident Commanders and Control Room Operators. Responders receive status and minimum operational information; Organization Admins and Platform Super Admins receive no automatic reason access. Auditor access is only through a specifically authorized audit view; current `listAuditLogs` is redacted and does not expose metadata, so that view remains a deferred contract dependency with no Sprint 3 endpoint/grant expansion. Reasons are excluded from generic logs, public telemetry, unauthorized notifications and unredacted errors. Events and audit records are append-only through ordinary APIs; corrections append a new authorized event. Sprint 3 adds no purge/scheduler. Q-05 remains OPEN; this does not authorize indefinite personal-data retention.
 
 Report: DRAFT → SUBMITTED → APPROVED or REJECTED. Submission freezes the snapshot; rejection preserves it and its reason. A rejected or approved version is superseded by a new DRAFT with the same report number and incremented revision. No editing submitted/approved/rejected versions. Approval requires online reauthorization and a fresh version check. Proposed maker/checker: approver differs from submitter; exceptions require an approved future policy, no implicit admin bypass.
 

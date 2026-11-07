@@ -18,9 +18,9 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-004 | Tenant role grant bounds and cross-tenant role/member denial. |
 | T-005 | Personnel private-field projection and authorized profile change. |
 | T-006 | Tenant-unique vehicle call sign, retirement/history preservation. |
-| T-007 | All allowed and rejected incident transitions, required version and guards. |
+| T-007 | Q-02 lifecycle edge matrix; Sprint 3 accepts DRAFT→OPEN and Commander cancellation only from DRAFT/OPEN with reason; reject unsupported and Sprint 4-dependent edges; enforce role grants, base_version, `STALE_VERSION`/`INVALID_TRANSITION`/`PREREQUISITE_UNAVAILABLE`, atomic single version increment, event+audit commit, and no mutation on conflict. |
 | T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
-| T-009 | Six location records, same-tenant/wrong-incident and foreign-tenant FK rejection. |
+| T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
 | T-010 | Manual assignments only, active resource validation, no external dispatch. |
 | T-011 | Append-only movement corrections, assigned-vehicle check, occurred vs received time. |
 | T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |
@@ -28,7 +28,7 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-014 | Encrypted outbox survives restart/offline; account/tenant partitions; local pending label. |
 | T-015 | Concurrent/repeated sync produces one mutation; altered payload same key conflicts; receipt and mutation atomic. |
 | T-016 | Stale version and dependency ordering; tombstones, cursor expiry, scope loss and safe resnapshot preserve local work. |
-| T-017 | Only commander closes COMPLETED with outcome; report state stays independent. |
+| T-017 | Only commander closes COMPLETED after review; COMPLETED requires nonempty outcome; cancellation only from DRAFT/OPEN with reason; CLOSED/CANCELLED cannot reopen in MVP; report state stays independent; verify reason projection (full for authorized Commander/Operator, omitted for responder/admin/platform, auditor view deferred), unauthorized errors/notifications/logs redact it. |
 | T-018 | Required report sections/provenance and missing-data honesty; sanitized six-location scenario. |
 | T-019 | Submit freezes snapshot, self-approval blocked, reject reason, immutable approved version, correction creates revision, approval race single winner. |
 | T-020 | Approved-only PDF/text, redaction and exact revision digest, no automated sending/acknowledgement claim. |
@@ -37,7 +37,7 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-024 | Bound purpose/version/nonce challenges; MFA/TOTP/code replay, replacement, reset preserving MFA, refresh ancestor reuse/races/absolute expiry and expired-access logout. |
 | T-026 | One-time handoff purpose/subject/client/version/expiry, completed-auth/MFA guards, web-cookie/native custom-media separation, replay/response-loss/refresh races, encrypted-material purge and no capture in APM/proxy/log/audit; synthetic-only authorized local mock mailbox, zero outbound/fallback, production sender disabled. |
 | T-025 | Traverse every identity success/error/page/header projection; no generic secret/hash/seed/URI/code-list/token/redirect echoes or logging/audit payloads; only the isolated C-02 handoff may release material, unavailable adapter denies. |
-| T-022 | Successful mutation audit atomicity, denied-action trail, sensitive reads/exports, no credential/private payload logging. |
+| T-022 | Successful mutation audit atomicity; denied-action trail; sensitive reads/exports; append-only audit/event records and correction-by-new-event; cancellation reason access only by approved projection; no reason in generic logs/public telemetry/unauthorized notifications/errors; auditor full reason only after a separately approved authorized audit view exists. |
 
 ## Non-functional/security suites
 
@@ -52,7 +52,7 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-N07 | Measure proposed p95 API limits with agreed 50-concurrent-user/10-tenant/100k-incident fixture; separate upload/render budgets. |
 | T-N08 | Availability instrumentation, failure injection, health probes and alert runbook exercise; no retrospective uptime claim without measurements. |
 | T-N09 | Reproducible build, lint/type check, migration/RLS inventory, dependency/secret checks and OpenAPI conformance. |
-| T-N10 | Correlation/metrics/audit redaction and actionable failure alerts with no cross-tenant labels exposing content. |
+| T-N10 | Correlation/metrics/audit redaction and actionable failure alerts with no cross-tenant labels exposing content; prove cancellation reason never enters generic logs, public telemetry or unauthorized notifications. |
 
 ## Release gates and evidence
 

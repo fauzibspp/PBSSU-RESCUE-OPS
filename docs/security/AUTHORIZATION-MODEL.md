@@ -37,13 +37,21 @@ Groups are documentation shorthand for the following exact operation keys, not r
 | G-09 | listReportRevisions, getReport, requestReportExport, getReportExport | Auditors/admins see APPROVED revisions only; operators/commanders also have G-08 draft access. Exports always approved and redacted. |
 | G-10 | listPersonnel, listVehicles, createVehicle, updateVehicle | Tenant administration, minimized personnel projection. |
 | G-11 | listAuditLogs | Redacted tenant audit only; no global security telemetry. |
-| G-12 | transitionIncident | Commander-only closure/cancellation; G-15 below grants operator ordinary transitions. All transitions subject Q-02 guards. |
+| G-12 | transitionIncident | Commander-only cancellation from DRAFT/OPEN and closure from COMPLETED; cancellation requires a reason. Post-dispatch cancellation is deferred to an approved resource-release workflow. |
 | G-13 | decideReport | Commander with recent MFA; different submitter; frozen submitted snapshot and matching version. |
 | G-14 | pushSync, pullSync | Transport gate plus per-operation underlying permissions and per-record scope; no sync-only authority. |
-| G-15 | transitionIncident | Operator: normal transitions only, excluding CLOSED/CANCELLED; legal graph/guards still apply. |
+| G-15 | transitionIncident | Operator: Q-02-approved ordinary transitions only; never cancellation/closure or unsupported assignment/arrival-dependent edges. |
 | G-16 | listPersonnel, listVehicles | Minimized tenant resource roster for assignment selection; excludes private contacts/registration fields and grants no administrative writes. |
 
 G-15 restricts operator transitions; commander and operator G-14/G-16 grants cover field evidence synchronization and minimized assignment selection. Org admin and auditor receive no sync transport grant by default. Responder receives no report/agency access; necessary personnel/vehicle labels are projected through getAssignments. No role gains private personnel-directory access implicitly.
+
+## Q-02 incident authority overlay (approved policy; implementation pending)
+
+Preserve Q-01 exact grants and the six role templates. For Sprint 3, `listIncidents`/`getIncident` and `listLocations` remain governed by their existing explicit G-04 grants and resource scopes. `createIncident`, descriptive `updateIncident`, and `createLocation` use their exact G-05 permissions for Control Room Operator and Incident Commander. `transitionIncident` ordinary transitions are Operator-only through G-15; G-12 reserves cancellation from DRAFT/OPEN and closure from COMPLETED to Incident Commander. Cancellation requires a nonempty reason. Target-state checks enforce these different authorities even though the REST operation ID is shared. A successful command checks required assurance and current base version.
+
+Organization Admin, Read-Only Auditor, Field Responder and Platform Super Admin receive no implicit incident mutation or transition authority. Explicit G-04 read grants remain unchanged: responders are assignment-scoped; admin/auditor projections remain limited to their approved read scope. Platform capability never implies tenant access. No mandatory distinct-person maker/checker is required for MVP; report approval remains a separate workflow.
+
+Sprint 3 can accept only DRAFT→OPEN and CANCELLED from DRAFT/OPEN. `DISPATCHED` and assignment/arrival-dependent transitions are denied as unavailable until Sprint 4 evidence is implemented. This is a workflow gate, not a new permission grant. Post-dispatch cancellation/release and maintenance/breakdown behavior are deferred. These policies were approved by the Project Owner on 2026-11-07; this approval does not authorize implementation.
 
 ## Identity capability catalogue
 
@@ -99,3 +107,7 @@ Extend T-003/T-004/T-N01 and T-N02 with: foreign selector and resource IDs for e
 ## M00.2 freeze boundaries
 
 Permission IDs remain exact OpenAPI operation IDs. Role input/output DTOs carry explicit permission_id/resource_scope pairs; repeated permission IDs with conflicting scopes are rejected even if JSON uniqueItems passes. Q-01 template scopes/delegation are approved as of 2026-11-07. C-02 allows only the explicitly documented dedicated handoff channel; generic API/audit/log secrecy remains mandatory. No pending session or unaccepted invitation grants operational authority. Tests T-023/024/025 extend invitation, assurance and response secrecy acceptance; none are runtime results.
+
+## Approved Q-02 cancellation reason projection (2026-11-07)
+
+The bounded cancellation reason is restricted operational information. Full reason may appear in authorized tenant `listIncidents`/`getIncident` projections for Incident Commander and Control Room Operator, subject to their explicit existing read grants. Field Responder receives CANCELLED status and minimum operational information only. Organization Admin and Platform Super Admin have no automatic reason access. Read-Only Auditor may see the full reason only through a specifically authorized audit view. Existing `listAuditLogs` has G-11 but its `Audit` response is a redacted record without metadata; it does not constitute that view. Do not add an API operation, response metadata or permission in Sprint 3; Auditor reason access remains deferred for future contract approval. No reason in generic logs, public telemetry, unauthorized notifications or unredacted errors. This field policy does not change role grants or Q-01 templates.

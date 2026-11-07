@@ -2,6 +2,8 @@
 
 PBSSU-ARCH-001 v0.3.0, 2026-11-07. Approved foundation under [owner record](../planning/STAKEHOLDER-APPROVAL-2026-11-07.md); operational feature policies and runtime verification remain gated.
 
+Q-02 owner approval (2026-11-07) additionally freezes role-specific cancellation-reason projection and append-only/no-automatic-purge policy for Sprint 3. Full reasons are restricted to authorized Commander/Operator incident reads; responder projections are minimized, and no automatic Org Admin/Platform access is granted. Auditor access requires a specifically authorized audit view, which the current redacted `listAuditLogs` response does not provide and remains deferred. Q-05 retention/disposal remains open; no indefinite-retention approval is implied.
+
 ```mermaid
 flowchart LR
   Mobile[Flutter Android and iOS] -->|HTTPS REST| API[NestJS modular monolith]
@@ -34,6 +36,8 @@ One deployable backend initially, with explicit module services and no client da
 | M12 Command center | Read models/dashboard; calls authorized services, no separate data authority. |
 | M13 Audit/security | Cross-cutting authorization, redacted audit and telemetry. |
 | M14 Configuration | Versioned organization settings, depends M01/M02/M13. |
+
+**Sprint delivery cross-reference:** Sprint 3 is the incident delivery slice (M05) and includes the two incident-location operations while preserving their M07 domain ownership. The seven-operation/three-table scope is frozen in [Sprint 3 scope v1](../planning/SPRINT-3-SCOPE.v1.json); this does not move M07 observations/GPS/media or M06 assignments into Sprint 3.
 
 ## Tenant request protocol
 

@@ -23,7 +23,7 @@ The [readiness report](M01-READINESS.md) defines exact future backend-only scope
 | --- | --- | --- | --- |
 | 1 / M01 | M00 approval, Q-01/03/04 foundation choices | Foundation, auth/RBAC, tenancy, migrations, synthetic fixtures and CI | T-001/002/003/004/022, T-N01/02/09/10 foundation subset |
 | 2 | Sprint 1 | Organization/member/vehicle/config administration and initial web/mobile navigation; modules M01/M03/M04/M14 | T-005/006; tenant negative tests on each API |
-| 3 | Sprint 2, Q-02 | Incident lifecycle, multiple locations and change-event foundation; M05 | T-007/009/017 and timezone guards |
+| 3 | Sprint 2, Q-02 (APPROVED 2026-11-07; policy/contract only) | Contract-frozen scope: `incidents`, `incident_locations`, `change_events`; `listIncidents`, `createIncident`, `getIncident`, `updateIncident`, `transitionIncident`, `listLocations`, `createLocation`. M05 owns incidents; location operations remain M07-owned and are included as the Sprint 3 location slice. Implementation NOT AUTHORIZED. | T-007/009/017 plus tenant/RLS, stale-version, atomic event/audit and timezone guards |
 | 4 | Sprint 3 | Human assignments and append-only movement timeline; M06/M09 | T-010/011 including cross-incident FK and no external dispatch |
 | 5 | Sprint 4, media dependencies | Field location observations/risk, optional GPS, private quarantined media; M07/M08 | T-012/013, T-N03/06 media/mobile checks |
 | 6 | Sprint 5, Q-05/library decision | Encrypted SQLite outbox, push/pull receipts, conflicts, tombstones and resnapshot; M10 | T-014/015/016, T-N04; airplane mode/restart/revocation cases |
