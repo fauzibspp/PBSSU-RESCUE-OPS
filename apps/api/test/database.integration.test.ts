@@ -8,6 +8,7 @@ import {
   tenantTransaction,
   type Database,
 } from "../src/database/connection.js";
+import * as incidentPermissions from "../src/database/migrations/005-incident-permissions.js";
 
 interface DevelopmentDatabaseState {
   ownerUrl: string;
@@ -161,6 +162,10 @@ describe("M01 PostgreSQL foundation", () => {
             where organization_id = ${organizationId}::uuid
           `.execute(transaction);
           await sql`
+            delete from app.role_permissions
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
           delete from app.memberships
           where organization_id = ${organizationId}::uuid
         `.execute(transaction);
@@ -228,6 +233,8 @@ describe("M01 PostgreSQL foundation", () => {
       "002-permission-catalog",
       "003-vehicles",
       "004-incidents",
+      "005-incident-permissions",
+      "006-protected-cancellation-audit",
     ]);
     expect(new Set(policies.rows.map((row) => row.table_name))).toEqual(
       new Set([
@@ -256,6 +263,11 @@ describe("M01 PostgreSQL foundation", () => {
     const expectedCodes = new Set([
       ...approvedScope.operations,
       ...sprint2Scope.operations,
+      "listIncidents",
+      "createIncident",
+      "getIncident",
+      "updateIncident",
+      "transitionIncident",
     ]);
     expect(codes.size).toBe(expectedCodes.size);
     expect([...expectedCodes].every((code) => codes.has(code))).toBe(true);
@@ -268,6 +280,112 @@ describe("M01 PostgreSQL foundation", () => {
     expect([...codes].some((code) => code === "*" || code.endsWith(".*"))).toBe(
       false,
     );
+  });
+
+  it("backfills only the approved incident role grants and scopes", async () => {
+    for (const [organizationId, userId, roleId, code] of [
+      [tenantA, userA, roleA, "INCIDENT_COMMANDER"],
+      [tenantB, userB, roleB, "CONTROL_ROOM_OPERATOR"],
+    ] as const) {
+      await tenantTransaction(owner, organizationId, userId, (tx) =>
+        sql`update app.roles set code=${code} where organization_id=${organizationId} and id=${roleId}`.execute(
+          tx,
+        ),
+      );
+    }
+    const responder = randomUUID(),
+      auditor = randomUUID(),
+      admin = randomUUID();
+    await tenantTransaction(owner, tenantA, userA, async (tx) => {
+      for (const [roleId, code] of [
+        [responder, "FIELD_RESPONDER"],
+        [auditor, "READ_ONLY_AUDITOR"],
+        [admin, "ORGANIZATION_ADMIN"],
+      ] as const) {
+        await sql`insert into app.roles(id,organization_id,code,name) values(${roleId},${tenantA},${code},${code})`.execute(
+          tx,
+        );
+      }
+    });
+    await owner.transaction().execute((tx) => incidentPermissions.up(tx));
+    const alpha = await tenantTransaction(owner, tenantA, userA, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantA}
+          and p.code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    const bravo = await tenantTransaction(owner, tenantB, userB, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantB}
+          and p.code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    const rows = [...alpha.rows, ...bravo.rows];
+    expect(rows).toHaveLength(16);
+    expect(
+      rows
+        .filter((row) => row.role_code === "FIELD_RESPONDER")
+        .every(
+          (row) =>
+            row.resource_scope === "ASSIGNED" &&
+            ["listIncidents", "getIncident"].includes(row.permission_code),
+        ),
+    ).toBe(true);
+    expect(
+      rows
+        .filter((row) => row.role_code === "ORGANIZATION_ADMIN")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual(["getIncident", "listIncidents"]);
+    expect(
+      rows
+        .filter((row) => row.role_code === "READ_ONLY_AUDITOR")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual(["getIncident", "listIncidents"]);
+    expect(rows.some((row) => row.role_code === "PLATFORM_SUPER_ADMIN")).toBe(
+      false,
+    );
+    expect(
+      rows
+        .filter((row) => row.role_code === "CONTROL_ROOM_OPERATOR")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual([
+      "createIncident",
+      "getIncident",
+      "listIncidents",
+      "transitionIncident",
+      "updateIncident",
+    ]);
+    expect(
+      rows
+        .filter((row) => row.role_code === "INCIDENT_COMMANDER")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual([
+      "createIncident",
+      "getIncident",
+      "listIncidents",
+      "transitionIncident",
+      "updateIncident",
+    ]);
   });
 
   it("restricts runtime privileges and hides tenant rows without context", async () => {

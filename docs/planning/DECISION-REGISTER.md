@@ -57,6 +57,16 @@ PBSSU-REG-001 v0.5, 2026-11-07 (updated for M02 readiness review). Current appro
 
 **M01-R01:** remains OPEN. Q-02 approval does not approve rollback, backup/restore, production deployment or recovery.
 
+## Sprint 3-B bounded implementation decisions (2026-11-07)
+
+The Project Owner authorized the exact incident permission recovery and one forward-only audit metadata compatibility migration for Sprint 3-B. Migration `005-incident-permissions` adds only `listIncidents`, `getIncident`, `createIncident`, `updateIncident`, and `transitionIncident`. G-04 read grants are Tenant-scoped for Organization Admin, Control Room Operator, Incident Commander and Read-Only Auditor, and ASSIGNED-scoped for Field Responder. G-05 create/update grants go only to Control Room Operator and Incident Commander. `transitionIncident` is granted only to Operator and Commander; command target checks reserve cancellation for Commander. No platform operational grants and no Organization Admin write/transition grants are introduced. New-organization onboarding seeds the same mappings. Platform Super Admin's separate platform grant does not satisfy tenant membership/permission checks.
+
+Migration `006-protected-cancellation-audit` replaces only the historical empty-object metadata constraint with an allowlist for `{}` or a single exact, versioned AES-256-GCM ciphertext envelope on successful `transitionIncident` audit records for `INCIDENT`. It preserves tenant RLS/FORCE RLS, runtime insert-only audit access, and immutable audit triggers. Historical migrations 001-004 remain unchanged; both new migrations are forward-only. No table or API operation was added.
+
+The key file at `%LOCALAPPDATA%\PBSSU-RESCUE-OPS\sprint3b-identity-keys.json` is a random local development key set generated for synthetic testing, outside the repository/database. Format and key-pair consistency were checked without displaying key contents. Its ACL grants read-only to the dedicated local test account and full control to the owner, SYSTEM and local Administrators. This file-based arrangement is local-only and is not production KMS/key lifecycle management. No production key, real operational data, or credential issuance is authorized.
+
+Cancellation reasons are never stored in plaintext in incidents, change events, or audit metadata and are not decrypted by generic list/get operations. The current API does not return the stored reason; authorized retrieval, including the deferred Auditor view, remains a follow-up contract/design dependency. Reasons remain absent from generic logs, telemetry, unauthorized notifications, and error responses. M01-R01, Q-05, Q-06, and Q-08 remain OPEN.
+
 ## M01 implementation risk
 
 | ID | Status | Finding / recommendation | Acceptance gate |

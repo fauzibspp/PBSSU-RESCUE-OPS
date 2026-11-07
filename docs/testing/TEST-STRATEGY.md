@@ -39,6 +39,8 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-025 | Traverse every identity success/error/page/header projection; no generic secret/hash/seed/URI/code-list/token/redirect echoes or logging/audit payloads; only the isolated C-02 handoff may release material, unavailable adapter denies. |
 | T-022 | Successful mutation audit atomicity; denied-action trail; sensitive reads/exports; append-only audit/event records and correction-by-new-event; cancellation reason access only by approved projection; no reason in generic logs/public telemetry/unauthorized notifications/errors; auditor full reason only after a separately approved authorized audit view exists. |
 
+Sprint 3-B execution adds restricted-role PostgreSQL coverage for exact incident permission catalog keys/scopes/grants, onboarding template mapping, incident CRUD commands, optimistic concurrency races, staged lifecycle guard codes, cross-tenant denial, ciphertext-only cancellation metadata, rejection of arbitrary metadata, immutable audit writes, and rollback when encryption key loading fails. Generic list/get do not decrypt cancellation metadata; the authorized reason retrieval projection remains deferred. These are implementation checks, not proof of production key management or deployment recovery.
+
 ## Non-functional/security suites
 
 | ID | Gate |
