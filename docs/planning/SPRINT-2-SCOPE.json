@@ -1,0 +1,19 @@
+{
+  "baseline": "fe5cbec0d2947bc0b8c0f87856e4f7e4f4fbf5b7",
+  "roadmap_item": "Sprint 2 backend remainder",
+  "tables": ["vehicles"],
+  "operations": ["listVehicles", "createVehicle", "updateVehicle"],
+  "permissions": ["listVehicles", "createVehicle", "updateVehicle"],
+  "approved_documentation_delta": {
+    "docs/planning/DECISION-REGISTER.md": "7f99380f3b626435560c08c632e56e050d4f6f0396ae9a86469e41adf8d87b46"
+  },
+  "out_of_scope": [
+    "web and mobile navigation shells",
+    "incident lifecycle",
+    "assignments and dispatch",
+    "GPS and offline synchronization",
+    "media",
+    "reporting",
+    "production integrations"
+  ]
+}

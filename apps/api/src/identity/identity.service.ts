@@ -287,6 +287,9 @@ export class IdentityService implements OnModuleDestroy {
       "listPermissions",
       "getSettings",
       "updateSettings",
+      "listVehicles",
+      "createVehicle",
+      "updateVehicle",
     ];
     const orgId = randomUUID();
     const invitationId = randomUUID();
@@ -345,6 +348,19 @@ export class IdentityService implements OnModuleDestroy {
         await connection.query(
           "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
           [orgId, adminRoleId, grant.id],
+        );
+      }
+      const vehicleReadGrant = grants.rows.find(
+        (grant) => grant.code === "listVehicles",
+      );
+      if (!vehicleReadGrant?.valid_scopes.includes("TENANT"))
+        throw new Error("Vehicle roster permission missing");
+      for (const roleCode of ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"]) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved operational role missing");
+        await connection.query(
+          "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
+          [orgId, roleId, vehicleReadGrant.id],
         );
       }
       const settingsId = randomUUID();

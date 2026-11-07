@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { IdentityService } from "../src/identity/identity.service.js";
 import { loadLocalSecrets } from "../src/identity/local-secrets.js";
 import { OrganizationService } from "../src/organizations/organization.service.js";
+import { VehicleService } from "../src/vehicles/vehicle.service.js";
 
 interface DevelopmentDatabaseState {
   ownerUrl: string;
@@ -43,6 +44,7 @@ const binding = randomBytes(32).toString("base64url");
 const owner = new Pool({ connectionString: state.ownerUrl, max: 1 });
 let identity: IdentityService;
 let organizationService: OrganizationService | undefined;
+let vehicleService: VehicleService | undefined;
 let mfaSecret = "";
 let recoveryCodes: string[] = [];
 let accessToken = "";
@@ -150,6 +152,9 @@ describe("M01 privileged MFA lifecycle", () => {
           "listPermissions",
           "getSettings",
           "updateSettings",
+          "listVehicles",
+          "createVehicle",
+          "updateVehicle",
         ],
       ],
     );
@@ -314,6 +319,7 @@ describe("M01 privileged MFA lifecycle", () => {
       });
     await identity?.onModuleDestroy();
     await organizationService?.onModuleDestroy();
+    await vehicleService?.onModuleDestroy();
     await owner.end();
   });
 
@@ -444,6 +450,7 @@ describe("M01 privileged MFA lifecycle", () => {
     ).rejects.toThrow();
 
     organizationService = new OrganizationService(identity);
+    vehicleService = new VehicleService(identity);
     await expect(
       organizationService.getOrganization(accessToken, organizationId),
     ).rejects.toThrow();
@@ -535,6 +542,74 @@ describe("M01 privileged MFA lifecycle", () => {
       id: organizationId,
       status: "ACTIVE",
     });
+    const createdVehicle = await vehicleService.createVehicle(
+      accessToken,
+      organizationId,
+      { call_sign: "  RESCUE-01 ", kind: "Pumper" },
+    );
+    expect(createdVehicle).toMatchObject({
+      organization_id: organizationId,
+      call_sign: "RESCUE-01",
+      kind: "Pumper",
+      service_state: "AVAILABLE",
+    });
+    expect(Object.keys(createdVehicle).sort()).toEqual(
+      [
+        "id",
+        "version",
+        "created_at",
+        "organization_id",
+        "call_sign",
+        "kind",
+        "service_state",
+      ].sort(),
+    );
+    const vehiclePage = await vehicleService.listVehicles(
+      accessToken,
+      organizationId,
+    );
+    expect(vehiclePage.items).toHaveLength(1);
+    expect(vehiclePage.items[0]?.id).toBe(createdVehicle.id);
+    const updatedVehicle = await vehicleService.updateVehicle(
+      accessToken,
+      organizationId,
+      createdVehicle.id,
+      { base_version: 1, service_state: "MAINTENANCE" },
+    );
+    expect(updatedVehicle).toMatchObject({
+      version: 2,
+      service_state: "MAINTENANCE",
+    });
+    await expect(
+      vehicleService.createVehicle(accessToken, organizationId, {
+        call_sign: "   ",
+        kind: "Pumper",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      vehicleService.createVehicle(accessToken, organizationId, {
+        call_sign: "RESCUE-01",
+        kind: "Pumper",
+        organization_id: randomUUID(),
+      }),
+    ).rejects.toThrow();
+    await expect(
+      vehicleService.createVehicle(accessToken, organizationId, {
+        call_sign: "RESCUE-01",
+        kind: "Pumper",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      vehicleService.updateVehicle(
+        accessToken,
+        organizationId,
+        createdVehicle.id,
+        {
+          base_version: 1,
+          service_state: "AVAILABLE",
+        },
+      ),
+    ).rejects.toThrow();
     const roster = await organizationService.listPersonnel(
       accessToken,
       organizationId,
@@ -545,6 +620,54 @@ describe("M01 privileged MFA lifecycle", () => {
       user_id: userId,
       status: "ACTIVE",
     });
+    const membershipId = String(rosterItems[0]!.id);
+    await owner.query("select set_config('app.organization_id',$1,false)", [
+      organizationId,
+    ]);
+    for (const roleCode of [
+      `NO_VEHICLE_${userId.slice(0, 8)}`,
+      "FIELD_RESPONDER",
+      "READ_ONLY_AUDITOR",
+    ]) {
+      const unauthorizedRoleId = randomUUID();
+      await owner.query(
+        "insert into app.roles (id,organization_id,code,name) values($1,$2,$3,$4)",
+        [unauthorizedRoleId, organizationId, roleCode, `${roleCode} fixture`],
+      );
+      await owner.query(
+        "delete from app.membership_roles where organization_id=$1 and membership_id=$2",
+        [organizationId, membershipId],
+      );
+      await owner.query(
+        "insert into app.membership_roles (organization_id,membership_id,role_id) values($1,$2,$3)",
+        [organizationId, membershipId, unauthorizedRoleId],
+      );
+      await expect(
+        vehicleService.listVehicles(accessToken, organizationId),
+        `${roleCode} with platform grants has no implicit tenant read`,
+      ).rejects.toThrow();
+      await expect(
+        vehicleService.createVehicle(accessToken, organizationId, {
+          call_sign: `DENIED-${roleCode.slice(0, 8)}`,
+          kind: "Synthetic",
+        }),
+        `${roleCode} has no vehicle administration grant`,
+      ).rejects.toThrow();
+      await owner.query(
+        "delete from app.membership_roles where organization_id=$1 and membership_id=$2",
+        [organizationId, membershipId],
+      );
+      await owner.query("delete from app.roles where id=$1", [
+        unauthorizedRoleId,
+      ]);
+    }
+    await owner.query(
+      "insert into app.membership_roles (organization_id,membership_id,role_id) values($1,$2,$3)",
+      [organizationId, membershipId, roleId],
+    );
+    await expect(
+      vehicleService.listVehicles(accessToken, randomUUID()),
+    ).rejects.toThrow();
     await expect(
       organizationService.setMembershipRoles(
         accessToken,
@@ -653,6 +776,28 @@ describe("M01 privileged MFA lifecycle", () => {
       invitation_status: "PENDING",
       membership_count: 0,
     });
+    const vehicleTemplateGrants = await owner.query<{
+      role_code: string;
+      permission_code: string;
+    }>(
+      `select r.code as role_code,p.code as permission_code
+       from app.roles r join app.role_permissions rp
+         on rp.organization_id=r.organization_id and rp.role_id=r.id
+       join app.permissions p on p.id=rp.permission_id
+       where r.organization_id=$1 and p.code=any($2::text[])
+       order by r.code,p.code`,
+      [
+        firstAdminOrganizationId,
+        ["listVehicles", "createVehicle", "updateVehicle"],
+      ],
+    );
+    expect(vehicleTemplateGrants.rows).toEqual([
+      { role_code: "CONTROL_ROOM_OPERATOR", permission_code: "listVehicles" },
+      { role_code: "INCIDENT_COMMANDER", permission_code: "listVehicles" },
+      { role_code: "ORGANIZATION_ADMIN", permission_code: "createVehicle" },
+      { role_code: "ORGANIZATION_ADMIN", permission_code: "listVehicles" },
+      { role_code: "ORGANIZATION_ADMIN", permission_code: "updateVehicle" },
+    ]);
     await owner.query("select set_config('app.organization_id',$1,false)", [
       organizationId,
     ]);

@@ -3,6 +3,7 @@ import { Migrator } from "kysely/migration";
 import type { Database } from "./connection.js";
 import * as foundation from "./migrations/001-foundation.js";
 import * as permissions from "./migrations/002-permission-catalog.js";
+import * as vehicles from "./migrations/003-vehicles.js";
 
 export async function migrate(
   database: Database,
@@ -28,6 +29,7 @@ export async function migrate(
       getMigrations: async () => ({
         "001-foundation": foundation,
         "002-permission-catalog": permissions,
+        "003-vehicles": vehicles,
       }),
     },
   });
@@ -54,6 +56,8 @@ export async function migrate(
       ? await migrator.migrateToLatest()
       : await migrator.migrateDown();
   if (result.error) {
-    throw new Error("Reviewed local migration failed");
+    throw new Error("Reviewed local migration failed", {
+      cause: result.error,
+    });
   }
 }

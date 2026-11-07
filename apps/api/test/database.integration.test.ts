@@ -30,6 +30,12 @@ const approvedScope = JSON.parse(
     "utf8",
   ),
 ) as { operations: string[] };
+const sprint2Scope = JSON.parse(
+  readFileSync(
+    new URL("../../../docs/planning/SPRINT-2-SCOPE.json", import.meta.url),
+    "utf8",
+  ),
+) as { operations: string[] };
 const owner = connectDatabase(state.ownerUrl, 2);
 const runtime = connectDatabase(state.runtimeUrl, 1);
 const runtimePool = new Pool({
@@ -109,6 +115,10 @@ describe("M01 PostgreSQL foundation", () => {
         userId,
         async (transaction) => {
           await sql`
+            delete from app.vehicles
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
           delete from app.memberships
           where organization_id = ${organizationId}::uuid
         `.execute(transaction);
@@ -131,7 +141,7 @@ describe("M01 PostgreSQL foundation", () => {
     await runtime.destroy();
   });
 
-  it("creates exactly 22 domain tables and forces RLS on tenant tables", async () => {
+  it("creates the M01 and Sprint 2 tables and forces RLS on tenant tables", async () => {
     const counts = await owner.executeQuery(
       sql<{ count: string }>`
         select count(*)::text as count
@@ -139,7 +149,7 @@ describe("M01 PostgreSQL foundation", () => {
         where table_schema = 'app' and table_type = 'BASE TABLE'
       `.compile(owner),
     );
-    expect(counts.rows[0]?.count).toBe("22");
+    expect(counts.rows[0]?.count).toBe("23");
 
     const policies = await owner.executeQuery(
       sql<{
@@ -156,11 +166,11 @@ describe("M01 PostgreSQL foundation", () => {
           and relation.relname in (
             'organizations', 'memberships', 'roles', 'role_permissions',
             'membership_roles', 'audit_logs', 'organization_settings',
-            'organization_invitations', 'invitation_roles'
+            'organization_invitations', 'invitation_roles', 'vehicles'
           )
       `.compile(owner),
     );
-    expect(policies.rows).toHaveLength(9);
+    expect(policies.rows).toHaveLength(10);
     expect(
       policies.rows.every((row) => row.row_security && row.force_row_security),
     ).toBe(true);
@@ -171,8 +181,17 @@ describe("M01 PostgreSQL foundation", () => {
       sql<{ code: string }>`select code from app.permissions`.compile(owner),
     );
     const codes = new Set(result.rows.map((row) => row.code));
+    const expectedCodes = new Set([
+      ...approvedScope.operations,
+      ...sprint2Scope.operations,
+    ]);
+    expect(codes.size).toBe(expectedCodes.size);
+    expect([...expectedCodes].every((code) => codes.has(code))).toBe(true);
     expect(
       approvedScope.operations.every((operation) => codes.has(operation)),
+    ).toBe(true);
+    expect(
+      sprint2Scope.operations.every((operation) => codes.has(operation)),
     ).toBe(true);
     expect([...codes].some((code) => code === "*" || code.endsWith(".*"))).toBe(
       false,
@@ -243,6 +262,32 @@ describe("M01 PostgreSQL foundation", () => {
         `.execute(transaction),
       ),
     ).rejects.toMatchObject({ code: "23503" });
+
+    const missingOrganization = randomUUID();
+    await expect(
+      tenantTransaction(
+        owner,
+        missingOrganization,
+        userA,
+        async (transaction) =>
+          sql`
+          insert into app.vehicles (organization_id,call_sign,kind)
+          values (${missingOrganization}::uuid,'ORPHAN','Test')
+        `.execute(transaction),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    const compositeUnique = await owner.executeQuery(
+      sql<{ exists: boolean }>`
+        select exists (
+          select 1 from pg_constraint c
+          join pg_class t on t.oid=c.conrelid
+          join pg_namespace n on n.oid=t.relnamespace
+          where n.nspname='app' and t.relname='vehicles' and c.contype='u'
+            and pg_get_constraintdef(c.oid)='UNIQUE (organization_id, id)'
+        ) as exists
+      `.compile(owner),
+    );
+    expect(compositeUnique.rows[0]?.exists).toBe(true);
   });
 
   it("clears transaction-local tenant context on pooled connection reuse", async () => {
@@ -250,27 +295,51 @@ describe("M01 PostgreSQL foundation", () => {
       runtime,
       tenantA,
       userA,
-      async (transaction) =>
-        sql<{ setting: string }>`
-        select current_setting('app.organization_id') as setting
-      `.execute(transaction),
+      async (transaction) => {
+        await sql`
+          insert into app.vehicles (organization_id,call_sign,kind)
+          values (${tenantA},${`POOL-${randomUUID().slice(0, 8)}`},'Test')
+        `.execute(transaction);
+        return sql<{ setting: string; backend_pid: number }>`
+          select current_setting('app.organization_id') as setting,
+                 pg_backend_pid() as backend_pid
+        `.execute(transaction);
+      },
     );
     expect(scoped.rows[0]?.setting).toBe(tenantA);
 
-    const afterCommit = await runtimePool.query(
-      "select nullif(current_setting('app.organization_id', true), '') as setting",
+    const afterCommit = await sql<{
+      setting: string | null;
+      backend_pid: number;
+      visible_vehicles: string;
+    }>`select nullif(current_setting('app.organization_id',true),'') as setting,
+            pg_backend_pid() as backend_pid,
+            (select count(*)::text from app.vehicles) as visible_vehicles`.execute(
+      runtime,
     );
-    expect(afterCommit.rows[0].setting).toBeNull();
+    expect(afterCommit.rows[0]?.backend_pid).toBe(scoped.rows[0]?.backend_pid);
+    expect(afterCommit.rows[0]?.setting).toBeNull();
+    expect(afterCommit.rows[0]?.visible_vehicles).toBe("0");
 
     await expect(
       tenantTransaction(runtime, tenantA, userA, async () => {
         throw new Error("synthetic rollback probe");
       }),
     ).rejects.toThrow("synthetic rollback probe");
-    const afterRollback = await runtimePool.query(
-      "select count(*)::text as count from app.memberships",
+    const afterRollback = await sql<{
+      setting: string | null;
+      visible_memberships: string;
+      visible_vehicles: string;
+    }>`select nullif(current_setting('app.organization_id',true),'') as setting,
+            (select count(*)::text from app.memberships) as visible_memberships,
+            (select count(*)::text from app.vehicles) as visible_vehicles`.execute(
+      runtime,
     );
-    expect(afterRollback.rows[0].count).toBe("0");
+    expect(afterRollback.rows[0]).toEqual({
+      setting: null,
+      visible_memberships: "0",
+      visible_vehicles: "0",
+    });
   });
 
   it("keeps concurrent tenant transaction contexts isolated", async () => {

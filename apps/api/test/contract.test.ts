@@ -10,6 +10,14 @@ const scope = JSON.parse(
   tables: string[];
   operations: string[];
 };
+const sprint2Scope = JSON.parse(
+  readFileSync(new URL("docs/planning/SPRINT-2-SCOPE.json", root), "utf8"),
+) as {
+  tables: string[];
+  operations: string[];
+  permissions: string[];
+  approved_documentation_delta: Record<string, string>;
+};
 const contract = JSON.parse(
   readFileSync(new URL("docs/api/openapi.json", root), "utf8"),
 ) as {
@@ -41,6 +49,10 @@ const controllerSources = [
   ),
   readFileSync(
     new URL("apps/api/src/organizations/organization.controller.ts", root),
+    "utf8",
+  ),
+  readFileSync(
+    new URL("apps/api/src/vehicles/vehicle.controller.ts", root),
     "utf8",
   ),
 ];
@@ -104,6 +116,33 @@ describe("approved M01 contract boundary", () => {
     expect(scope.tables).not.toContain("incidents");
   });
 
+  it("maps only the approved Sprint 2 vehicle delta to OpenAPI and handlers", () => {
+    expect(sprint2Scope.tables).toEqual(["vehicles"]);
+    expect(sprint2Scope.operations).toEqual([
+      "listVehicles",
+      "createVehicle",
+      "updateVehicle",
+    ]);
+    expect(sprint2Scope.permissions).toEqual(sprint2Scope.operations);
+    const operations = Object.values(contract.paths).flatMap(Object.values);
+    for (const operationId of sprint2Scope.operations) {
+      expect(
+        operations.some(
+          (operation) =>
+            operation.operationId === operationId &&
+            operation["x-permission"] === operationId &&
+            operation["x-authorization-domain"] === "TENANT",
+        ),
+        operationId,
+      ).toBe(true);
+      expect(
+        controllerSources.some((source) =>
+          new RegExp(`\\b${operationId}\\s*\\(`).test(source),
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("preserves all approved baseline fingerprints", () => {
     for (const [path, expected] of Object.entries(freeze.files)) {
       const source = readFileSync(new URL(path, root), "utf8").replaceAll(
@@ -115,6 +154,11 @@ describe("approved M01 contract boundary", () => {
         expect(contractDelta.files[path], `${path} approved M01 delta`).toBe(
           actual,
         );
+      } else if (path in sprint2Scope.approved_documentation_delta) {
+        expect(
+          sprint2Scope.approved_documentation_delta[path],
+          `${path} authorized Sprint 2 planning delta`,
+        ).toBe(actual);
       } else {
         expect(actual, path).toBe(expected);
       }

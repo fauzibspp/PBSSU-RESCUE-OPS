@@ -1,6 +1,6 @@
 # Foundation decisions, approvals and remaining gates
 
-PBSSU-REG-001 v0.4, 2026-11-07. Current approval authority is the [explicit project-owner record](STAKEHOLDER-APPROVAL-2026-11-07.md), separate from technical validation. Prior pending statuses in historical validation records describe their original dates only.
+PBSSU-REG-001 v0.5, 2026-11-07 (updated for M02 readiness review). Current approval authority is the [explicit project-owner record](STAKEHOLDER-APPROVAL-2026-11-07.md), separate from technical validation. Prior pending statuses in historical validation records describe their original dates only.
 
 | Decision | Current status | Scope and remaining verification |
 | --- | --- | --- |
@@ -32,6 +32,12 @@ PBSSU-REG-001 v0.4, 2026-11-07. Current approval authority is the [explicit proj
 | Q-08 | Actual team capacity, Android/iOS minimum OS, macOS build access and device test inventory? Delivery lead. | Reliable schedule and iOS build verification. |
 | Q-09 | Victim-data minimum fields and field encryption/key custody, approved access procedure? Data owner/security. | Victim data implementation/pilot. |
 | Q-10 | Agency directory ownership and evidence needed for any manual acknowledgement? Operations lead. | Agency evidence UI; no official integration assumed. |
+
+## M01 implementation risk
+
+| ID | Status | Finding / recommendation | Acceptance gate |
+| --- | --- | --- | --- |
+| M01-R01 | OPEN — production-like recovery gate | M01-F applied migrations 001/002 on a fresh isolated database, then the existing guarded `down` refused because migration 002 seeds permission rows and the guard requires all app tables empty. Sprint 2 uses forward migration 003 and does not claim downgrade/recovery verification. No migration history, data or rollback guard was altered. Recommend forward-only migrations for persistent environments, immutable migration history, corrective forward migrations, and verified backup/restore to a separate target. Do not manually delete seed/audit rows or bypass the guard. | Test repeated up/no-op, migration failure atomicity/detectability, seed/grant preservation, unchanged state on guarded rollback refusal, and isolated backup/restore including RLS/FORCE RLS/composite constraints and runtime tenant isolation. Full details and any future reversible-migration acceptance tests are in [M02 readiness](M02-READINESS.md). |
 
 ## Assumptions and risks retained
 
