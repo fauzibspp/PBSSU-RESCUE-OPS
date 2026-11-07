@@ -1,0 +1,8 @@
+{
+  "node": "24.16.0",
+  "npm": "12.2.2",
+  "databaseImage": "postgis/postgis:18-3.7@sha256:440bdd14e3edccfce04d080d8a1a0cbae5763fa16a1c4172bff83530828461de",
+  "platform": "linux/amd64",
+  "reviewed": "2026-11-07",
+  "status": "Manifest/registry verified; local runtime validation pending."
+}

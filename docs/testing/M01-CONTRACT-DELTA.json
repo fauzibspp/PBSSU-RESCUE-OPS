@@ -1,0 +1,10 @@
+{
+  "purpose": "Records contract changes permitted by the M01 authorization to update OpenAPI/implementation documentation, without changing the immutable M00 approval manifest.",
+  "files": {
+    "docs/api/openapi.json": "d4ef4845a9bf541fb77a1333ed92f5fda041a3a658f2c08417ffae7dcb316435"
+  },
+  "changes": [
+    "Invitation acceptance declares the client kind needed for the bound credential handoff.",
+    "Invitation activation returns one-time handoff metadata so the new member can complete the already-approved MFA and credential delivery lifecycle."
+  ]
+}

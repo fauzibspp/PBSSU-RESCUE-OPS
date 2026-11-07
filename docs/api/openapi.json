@@ -10874,13 +10874,21 @@
             "writeOnly": true,
             "x-sensitive": true
           },
+          "client_kind": {
+            "type": "string",
+            "enum": [
+              "WEB",
+              "MOBILE"
+            ]
+          },
           "new_password": {
             "$ref": "#/components/schemas/Password"
           }
         },
         "required": [
           "token",
-          "client_binding"
+          "client_binding",
+          "client_kind"
         ]
       },
       "InvitationAcceptResult": {
@@ -10945,13 +10953,17 @@
           "membership_status": {
             "type": "string",
             "const": "ACTIVE"
+          },
+          "handoff": {
+            "$ref": "#/components/schemas/SessionHandoff"
           }
         },
         "required": [
           "invitation_id",
           "membership_id",
           "organization_status",
-          "membership_status"
+          "membership_status",
+          "handoff"
         ]
       },
       "OnboardingResult": {
