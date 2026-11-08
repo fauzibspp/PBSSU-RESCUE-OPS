@@ -22,6 +22,22 @@ const sprint2Scope = JSON.parse(
   permissions: string[];
   approved_documentation_delta: Record<string, string>;
 };
+const uf01Scope = JSON.parse(
+  readFileSync(new URL("docs/planning/UF-01-SCOPE.v1.json", root), "utf8"),
+) as {
+  status: string;
+  product_ui_implementation_authorized: boolean;
+  contract_baseline: {
+    operation_count: number;
+    new_operations: string[];
+    new_permissions: string[];
+    new_database_entities: string[];
+  };
+  increments: Array<{
+    routes: string[];
+    existing_operations: string[];
+  }>;
+};
 const contract = JSON.parse(
   readFileSync(new URL("docs/api/openapi.json", root), "utf8"),
 ) as {
@@ -34,6 +50,12 @@ const contract = JSON.parse(
         operationId: string;
         "x-authorization-domain": string;
         "x-permission": string;
+        responses?: Record<
+          string,
+          {
+            content?: Record<string, { schema?: { $ref?: string } }>;
+          }
+        >;
       }
     >
   >;
@@ -90,6 +112,9 @@ const sprint4ContractDelta = JSON.parse(
     new URL("docs/testing/SPRINT-4-CONTRACT-DELTA.json", root),
     "utf8",
   ),
+) as { files: Record<string, string> };
+const uf01ContractDelta = JSON.parse(
+  readFileSync(new URL("docs/testing/UF-01-CONTRACT-DELTA.json", root), "utf8"),
 ) as { files: Record<string, string> };
 const controllerSources = [
   readFileSync(
@@ -192,6 +217,38 @@ describe("approved M01 contract boundary", () => {
     }
   });
 
+  it("preserves the frozen UF-01 route and existing-operation inventory", () => {
+    expect(uf01Scope.status).toBe("FROZEN");
+    expect(uf01Scope.product_ui_implementation_authorized).toBe(true);
+    expect(uf01Scope.contract_baseline.operation_count).toBe(75);
+    expect(uf01Scope.contract_baseline.new_operations).toEqual([]);
+    expect(uf01Scope.contract_baseline.new_permissions).toEqual([]);
+    expect(uf01Scope.contract_baseline.new_database_entities).toEqual([]);
+    const routes = uf01Scope.increments.flatMap(
+      (increment) => increment.routes,
+    );
+    expect(routes).toEqual([
+      "/login",
+      "/mfa",
+      "/mfa/enroll",
+      "/app",
+      "/app/organizations",
+      "/app/incidents",
+      "/app/incidents/:incidentId",
+    ]);
+    const operations = uf01Scope.increments.flatMap(
+      (increment) => increment.existing_operations,
+    );
+    expect(operations).toHaveLength(10);
+    expect(new Set(operations).size).toBe(10);
+    const documented = Object.values(contract.paths).flatMap(Object.values);
+    expect(
+      operations.every((operationId) =>
+        documented.some((operation) => operation.operationId === operationId),
+      ),
+    ).toBe(true);
+  });
+
   it("preserves all approved baseline fingerprints", () => {
     for (const [path, expected] of Object.entries(freeze.files)) {
       const source = readFileSync(new URL(path, root), "utf8").replaceAll(
@@ -199,7 +256,12 @@ describe("approved M01 contract boundary", () => {
         "\n",
       );
       const actual = normalizedFingerprint(source);
-      if (path in sprint4ContractDelta.files) {
+      if (path in uf01ContractDelta.files) {
+        expect(
+          uf01ContractDelta.files[path],
+          `${path} authorized UF-01 response-contract reconciliation`,
+        ).toBe(actual);
+      } else if (path in sprint4ContractDelta.files) {
         expect(
           sprint4ContractDelta.files[path],
           `${path} authorized Sprint 4 contract clarification`,
@@ -421,5 +483,154 @@ describe("approved M01 contract boundary", () => {
     expect(
       check({ ...metadata, refresh_token: "SYNTHETIC_NOT_A_CREDENTIAL" }),
     ).toBe(false);
+  });
+
+  it("documents the exact metadata-only MFA enrollment and replacement responses", () => {
+    const validator = new Ajv2020({ strict: false, validateFormats: false });
+    validator.addSchema({
+      ...contract,
+      $id: "https://pbssu.invalid/openapi.json",
+    });
+    const enrollment = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/MfaEnrollment",
+    });
+    const replacement = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/MfaReplacement",
+    });
+    const uuid = "11111111-1111-4111-8111-111111111111";
+    const handoff = {
+      handoff_id: "22222222-2222-4222-8222-222222222222",
+      purpose: "TOTP_SETUP",
+      expires_at: "2026-11-08T00:05:00Z",
+    };
+    expect(
+      enrollment({
+        enrollment_id: uuid,
+        handoff,
+        authentication_state: "CHALLENGE_REQUIRED",
+      }),
+    ).toBe(true);
+    expect(
+      enrollment({
+        enrollment_id: uuid,
+        handoff,
+        authentication_state: "CHALLENGE_REQUIRED",
+        secret: "SYNTHETIC_FORBIDDEN",
+      }),
+    ).toBe(false);
+    expect(
+      enrollment({
+        enrollment_id: uuid,
+        authentication_state: "CHALLENGE_REQUIRED",
+      }),
+    ).toBe(false);
+    expect(
+      replacement({
+        challenge_id: uuid,
+        purpose: "FACTOR_REPLACE",
+        expires_at: "2026-11-08T00:05:00Z",
+        attempts_remaining: 5,
+        authentication_state: "CHALLENGE_REQUIRED",
+        next_action: "CONFIRM_REPLACEMENT",
+        enrollment_id: uuid,
+        handoff,
+      }),
+    ).toBe(true);
+    expect(
+      replacement({
+        challenge_id: uuid,
+        purpose: "FACTOR_REPLACE",
+        expires_at: "2026-11-08T00:05:00Z",
+        attempts_remaining: 5,
+        authentication_state: "CHALLENGE_REQUIRED",
+        next_action: "VERIFY_MFA",
+        enrollment_id: uuid,
+        handoff,
+      }),
+    ).toBe(false);
+    expect(
+      contract.paths["/auth/mfa/enrollments"]?.post?.responses?.["202"]
+        ?.content?.["application/json"]?.schema?.$ref,
+    ).toBe("#/components/schemas/MfaEnrollment");
+    expect(
+      contract.paths["/auth/mfa/replacement"]?.post?.responses?.["202"]
+        ?.content?.["application/json"]?.schema?.$ref,
+    ).toBe("#/components/schemas/MfaReplacement");
+  });
+
+  it("documents self-membership responses without changing administrative membership schemas", () => {
+    const validator = new Ajv2020({ strict: false, validateFormats: false });
+    validator.addSchema({
+      ...contract,
+      $id: "https://pbssu.invalid/openapi.json",
+    });
+    const page = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/MyMembershipPage",
+    });
+    const uuid = "11111111-1111-4111-8111-111111111111";
+    const membership = {
+      membership_id: uuid,
+      organization_id: "22222222-2222-4222-8222-222222222222",
+      organization_name: "Synthetic Rescue Unit",
+      organization_slug: "synthetic-rescue-unit",
+      organization_status: "ACTIVE",
+      display_name: "Synthetic Member",
+      status: "ACTIVE",
+      availability: "AVAILABLE",
+      roles: [{ code: "INCIDENT_COMMANDER", name: "Incident Commander" }],
+    };
+    expect(page({ items: [membership], next_cursor: null })).toBe(true);
+    expect(
+      page({
+        items: [
+          Object.fromEntries(
+            Object.entries(membership).filter(([key]) => key !== "roles"),
+          ),
+        ],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+    expect(
+      page({
+        items: [
+          { ...membership, roles: [{ code: "invalid role", name: "x" }] },
+        ],
+        next_cursor: null,
+      }),
+    ).toBe(false);
+    expect(
+      page({
+        items: [
+          {
+            ...membership,
+            roles: [{ code: "CUSTOM_AID", name: "Local role" }],
+          },
+        ],
+        next_cursor: null,
+      }),
+    ).toBe(true);
+    expect(
+      page({ items: [{ ...membership, role_ids: [uuid] }], next_cursor: null }),
+    ).toBe(false);
+    expect(
+      validator.compile({
+        $ref: "https://pbssu.invalid/openapi.json#/components/schemas/Membership",
+      })({
+        id: uuid,
+        version: 1,
+        created_at: "2026-11-08T00:00:00Z",
+        organization_id: membership.organization_id,
+        user_id: "33333333-3333-4333-8333-333333333333",
+        display_name: "Synthetic Member",
+        status: "ACTIVE",
+        availability: "AVAILABLE",
+        role_ids: [],
+      }),
+    ).toBe(true);
+    expect(
+      contract.paths["/me/memberships"]?.get?.responses?.["200"]?.content?.[
+        "application/json"
+      ]?.schema?.$ref,
+    ).toBe("#/components/schemas/MyMembershipPage");
   });
 });

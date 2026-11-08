@@ -1,22 +1,20 @@
 # UI Foundation Readiness
 
-**Status:** UF-01A/B/C implementation is owner-authorized, but preflight is blocked by two mismatches between the approved OpenAPI contract and actual backend response shapes. No product UI implementation has started.
+**Status:** UF-01A/B/C owner-authorized scope is frozen after bounded response-contract reconciliation and passing preflight. Product UI implementation is now authorized within the manifest.
 **Reviewed implementation base:** `origin/main` at
 `6d7249b15aae43804feaf9bc0befaa4011f5d6a0` (Sprint 4 merge included).
 **Sprint 4 PR:** #4 is merged; see the actual
 [Pull Request](https://github.com/fauzibspp/PBSSU-RESCUE-OPS/pull/4).
 
-## UF-01 contract preflight blockers
+## UF-01 response-contract reconciliation
 
-The owner has approved UF-01A, UF-01B and UF-01C and authorized local implementation. The implementation gate nevertheless fails because the authenticated client must consume approved existing contracts without inference or contract changes.
+The owner approved UF-01A/B/C and subsequently authorized a bounded reconciliation of the two response schemas. The OpenAPI was corrected to match the verified, security-reviewed service projections. Details and field-level compatibility are documented in [the reconciliation record](../api/UF-01-CONTRACT-RECONCILIATION.md).
 
-1. **MFA enrollment response:** OpenAPI `components.schemas.MfaEnrollment` requires `enrollment_id`, `expires_at`, `state`, `delivery_status`, `challenge`, and `setup_handoff`. The actual `IdentityService.startMfaEnrollment()` returns `enrollment_id`, a `handoff` object (`handoff_id`, `purpose`, `expires_at`), and `authentication_state`. These are incompatible response shapes. This blocks implementing the complete privileged TOTP enrollment flow in UF-01A. Other login, challenge verification, handoff redemption, refresh and revocation work must remain within their individually compatible contracts; no partial flow may imply enrollment was completed.
+1. **MFA enrollment:** `MfaEnrollment` now describes `enrollment_id`, purpose-bound `handoff`, and `authentication_state`. TOTP material remains available only through one-time handoff redemption. `startMfaReplacement` has a separate response schema for its combined challenge/enrollment response.
 
-2. **Membership response:** OpenAPI `components.schemas.Membership` requires `id`, `version`, `created_at`, `organization_id`, `user_id`, `display_name`, `status`, `availability`, and `role_ids`. The actual `IdentityService.listMyMemberships()` returns `membership_id`, organization name/slug/status, display name, status, availability, and `roles` as `{code,name}` objects. The OpenAPI schema does not define the actual role-code projection. This blocks contract-compliant organization selection and role-aware navigation in UF-01B. Runtime role codes are not an approved contract fact for the browser client.
+2. **Membership response:** `GET /me/memberships` now uses dedicated self-membership schemas matching the implementation, without changing shared administrative membership schemas. Role codes follow the existing stored code syntax. Navigation maps only approved Q-01 tenant templates; custom role codes receive no operational navigation and never authorize.
 
-No OpenAPI or backend change is authorized by this preflight record. Resolve by approving and recording a bounded reconciliation of the existing operation response schemas to the actual approved service behavior (or an explicitly approved compatible service behavior), then revalidate the manifest. Do not add operations, roles, permissions, entities, or infer response fields.
-
-The exact findings and evidence are recorded in [UF-01 preflight validation](../testing/UF-01-PREFLIGHT-VALIDATION.md).
+The authorized response corrections and HTTP status/cache-header alignment are recorded in [the reconciliation record](../api/UF-01-CONTRACT-RECONCILIATION.md). No operation, permission, role, or database entity was added.
 
 ## Current frontend
 

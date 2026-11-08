@@ -1,23 +1,14 @@
 {
   "manifest_id": "PBSSU-UF-01",
   "version": "1.0.0",
-  "status": "OWNER_APPROVED_IMPLEMENTATION_BLOCKED_BY_CONTRACT_MISMATCH",
+  "status": "FROZEN",
   "approval": {
     "authority": "Project Owner",
     "decision_date": "2026-11-08",
     "approved_increments": ["UF-01A", "UF-01B", "UF-01C"],
     "implementation_authorized": true,
-    "preflight_status": "BLOCKED",
-    "blockers": [
-      {
-        "operation": "startMfaEnrollment",
-        "issue": "OpenAPI MfaEnrollment response does not match the implemented service response; privileged TOTP enrollment cannot be consumed contract-compliantly."
-      },
-      {
-        "operation": "listMyMemberships",
-        "issue": "OpenAPI Membership response does not describe the implemented membership and roles projection; role-aware navigation cannot rely on the actual role codes through the approved contract."
-      }
-    ]
+    "preflight_status": "PASS",
+    "contract_reconciliation": "../api/UF-01-CONTRACT-RECONCILIATION.md"
   },
   "product_ui_implementation_authorized": true,
   "contract_baseline": {
@@ -69,8 +60,8 @@
         "Session-expired and access-denied states"
       ],
       "boundaries": [
-        "Use only memberships returned for the authenticated user",
-        "Role-aware navigation is blocked until the approved Membership response schema matches the actual service projection; never use client role codes as authorization",
+        "Use only memberships returned for the authenticated user through MyMembershipPage",
+        "Map only the five approved Q-01 tenant template role codes to navigation affordances; unknown/custom role codes receive no operational navigation; client role codes never authorize",
         "Send X-Organization-Id as an untrusted selected-tenant selector on tenant operations",
         "Clear tenant-bound client data when the selected organization changes",
         "Do not call permission catalogs to infer grants or treat client navigation as authorization"
@@ -173,14 +164,14 @@
     ]
   },
   "exact_exclusions": [
-    "Any backend endpoint, permission, role, table, migration or OpenAPI change",
+    "Any new backend endpoint, permission, role, table, or migration; the specifically authorized bounded existing response-contract reconciliation is documented separately",
     "Incident create/update/transition, cancellation or closure UI",
     "Assignment, vehicle, movement, dispatch, GPS, media, offline sync or reporting UI",
     "Account recovery, MFA recovery, invitations, organization administration or user provisioning",
     "Production authentication, production data, external notifications, deployment or emergency operations"
   ],
   "dependencies_and_open_gates": [
-    "Project Owner approval of this exact UI scope is required before product UI implementation",
+    "Project Owner approval of UF-01A/B/C is recorded; implementation remains within this exact frozen scope",
     "Verify browser behavior of the existing WEB session handoff, trusted origin, Secure cookies and CSRF headers against real Nest HTTP tests",
     "Provide synthetic HTTP fixtures for tenant-only Commander/Operator, Auditor, Field Responder, Organization Admin and platform-only administrator",
     "M01-R01, Q-05, Q-06 and Q-08 remain open; this proposal closes none of them",

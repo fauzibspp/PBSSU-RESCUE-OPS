@@ -3,7 +3,9 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
+  HttpCode,
   Param,
   Post,
   PipeTransform,
@@ -75,11 +77,17 @@ export class IdentityController {
   }
 
   @Post("auth/login")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   login(@Body(new JsonObjectPipe()) body: Record<string, unknown>) {
     return this.identity.login(body);
   }
 
   @Post("auth/refresh")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async refreshSession(
     @Headers("x-refresh-token") refreshHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
@@ -242,6 +250,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/enrollments")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   startMfaEnrollment(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -365,6 +376,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/enrollments/confirm")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   confirmMfaEnrollment(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -373,6 +387,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/verify")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   verifyMfa(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -417,6 +434,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/replacement")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async startMfaReplacement(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("authorization") authorization: string | undefined,
@@ -431,6 +451,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/replacement/confirm")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   confirmMfaReplacement(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,

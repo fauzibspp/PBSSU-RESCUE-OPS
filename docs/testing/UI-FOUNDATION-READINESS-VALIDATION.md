@@ -84,7 +84,8 @@ recorded headed Edge run remains the evidence for visible-browser execution.
 
 The canonical versioned proposal is
 [`UF-01-SCOPE.v1.json`](../planning/UF-01-SCOPE.v1.json), marked
-`PROPOSED_NOT_APPROVED` with implementation unauthorized. Its 10 API references
+`PROPOSED_NOT_APPROVED` with implementation unauthorized at that historical
+review. Its 10 API references
 were checked against the existing 75-operation OpenAPI inventory; zero new
 operations, permissions, or database entities are proposed. The prior
 unversioned proposal file now points to this canonical manifest.
@@ -101,3 +102,18 @@ read-only pull-request permissions; Node 24 lockfile install; unit/contract,
 scope, lint, typecheck and builds; ephemeral PostGIS integration using the
 pinned digest and synthetic credentials; sanitized artifacts only; no
 deployment secrets or `pull_request_target`. No workflow was created.
+
+## UF-01 owner authorization and contract recovery (2026-11-08)
+
+The historical proposal status above is superseded by the Project Owner's
+explicit UF-01A/B/C authorization and the frozen
+[`UF-01-SCOPE.v1.json`](../planning/UF-01-SCOPE.v1.json). The two identified
+response mismatches were reconciled in
+[`UF-01-CONTRACT-RECONCILIATION.md`](../api/UF-01-CONTRACT-RECONCILIATION.md).
+The API contract test suite compiles component schemas and validates
+positive/negative response examples; a real Nest HTTP integration test checks
+the actual membership and password-challenge-to-MFA-enrollment flow. An initial
+integration run exposed missing no-store headers; controller headers were
+corrected to the approved OpenAPI contract and the repeated guarded suite
+passed 43/43 tests. Detailed current evidence is in
+[`UF-01-PREFLIGHT-VALIDATION.md`](UF-01-PREFLIGHT-VALIDATION.md).

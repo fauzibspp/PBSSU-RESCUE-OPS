@@ -1,6 +1,6 @@
 # Proposed UI Browser Acceptance Matrix
 
-**Status:** Proposed for owner review; operational UI is not implemented.
+**Status:** Owner-approved for UF-01A/B/C; scenarios remain not run until implemented.
 
 | Scenario                       | Desktop  | Mobile viewport | Acceptance evidence                                                                                                                                                                                                                                |
 | ------------------------------ | -------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -9,7 +9,7 @@
 | Privileged MFA                 | Required | Required        | Tenant-only Commander and Operator must complete existing TOTP challenge; password-only session cannot reach protected view                                                                                                                        |
 | Session handoff                | Required | Required        | Web cookie flow only; no credential material in browser storage or URL; trusted-origin/CSRF behavior preserved                                                                                                                                     |
 | Membership selection           | Required | Required        | Only memberships returned for authenticated user; switching organization reloads tenant-bound data                                                                                                                                                 |
-| Role-aware navigation          | Required | Required        | Uses selected membership role codes for display only; direct unauthorized request remains denied by API                                                                                                                                            |
+| Role-aware navigation          | Required | Required        | Maps only the five approved Q-01 tenant template codes to display links; custom/unknown codes get no operational links; direct unauthorized request remains denied by API                                                                          |
 | Role authorization negatives   | Required | Required        | Exact G-04 read grants; Organization Admin is G-04 read-only with reason redaction; Platform Super Admin has no tenant-content bypass; Auditor is read-only; Field Responder remains assignment-scoped and fail-closed without assignment evidence |
 | Incident list                  | Required | Required        | Loading, empty, populated, pagination, generic error, forbidden and expired-session states; no cross-tenant records                                                                                                                                |
 | Incident detail                | Required | Required        | Only approved read-only fields; cancellation reason and other excluded sensitive fields never rendered                                                                                                                                             |

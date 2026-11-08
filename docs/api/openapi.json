@@ -355,7 +355,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MembershipPage"
+                  "$ref": "#/components/schemas/MyMembershipPage"
                 }
               }
             }
@@ -5431,7 +5431,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MfaEnrollment"
+                  "$ref": "#/components/schemas/MfaReplacement"
                 }
               }
             }
@@ -10623,39 +10623,18 @@
             "type": "string",
             "format": "uuid"
           },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "Z$"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "AWAITING_HANDOFF",
-              "AWAITING_CONFIRMATION"
-            ]
-          },
-          "delivery_status": {
-            "type": "string",
-            "enum": [
-              "NOT_RELEASED",
-              "RELEASED_ONE_TIME"
-            ]
-          },
-          "challenge": {
-            "$ref": "#/components/schemas/AuthChallenge"
-          },
-          "setup_handoff": {
+          "handoff": {
             "$ref": "#/components/schemas/TotpHandoff"
+          },
+          "authentication_state": {
+            "type": "string",
+            "const": "CHALLENGE_REQUIRED"
           }
         },
         "required": [
           "enrollment_id",
-          "expires_at",
-          "state",
-          "delivery_status",
-          "challenge",
-          "setup_handoff"
+          "handoff",
+          "authentication_state"
         ]
       },
       "MfaConfirmInput": {
@@ -11492,6 +11471,168 @@
           }
         },
         "x-dedicated-handoff-only": true
+      },
+      "MfaReplacement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "purpose": {
+            "type": "string",
+            "const": "FACTOR_REPLACE"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "attempts_remaining": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "authentication_state": {
+            "type": "string",
+            "const": "CHALLENGE_REQUIRED"
+          },
+          "next_action": {
+            "type": "string",
+            "const": "CONFIRM_REPLACEMENT"
+          },
+          "enrollment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "handoff": {
+            "$ref": "#/components/schemas/TotpHandoff"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "purpose",
+          "expires_at",
+          "attempts_remaining",
+          "authentication_state",
+          "next_action",
+          "enrollment_id",
+          "handoff"
+        ]
+      },
+      "MyMembership": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "membership_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organization_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "organization_slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "organization_status": {
+            "type": "string",
+            "enum": [
+              "ONBOARDING",
+              "ACTIVE",
+              "SUSPENDED"
+            ]
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_ACTIVATION",
+              "ACTIVE",
+              "INACTIVE"
+            ]
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "UNAVAILABLE"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/TenantRoleSummary"
+            }
+          }
+        },
+        "required": [
+          "membership_id",
+          "organization_id",
+          "organization_name",
+          "organization_slug",
+          "organization_status",
+          "display_name",
+          "status",
+          "availability",
+          "roles"
+        ]
+      },
+      "MyMembershipPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyMembership"
+            },
+            "maxItems": 200
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "TenantRoleSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_-]{1,64}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
       }
     },
     "responses": {

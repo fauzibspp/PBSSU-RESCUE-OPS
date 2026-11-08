@@ -1,73 +1,90 @@
-# UF-01 Preflight Validation
+# UF-01 Contract Recovery and Preflight Validation
 
-**Result: BLOCKED before product UI implementation.** The Project Owner has
-approved UF-01A/B/C implementation, but two existing API responses do not match
-their approved OpenAPI schemas. The instruction to use only approved existing
-contracts prevents the web client from safely inferring those responses.
+**Result: PASS — frozen implementation scope is clear for UF-01A/B/C.** The
+Project Owner authorized the bounded contract reconciliation and local UI
+implementation on 2026-11-08. No new operation, permission, role, or database
+entity was introduced.
 
 ## Baseline
 
-- Repository: `D:\PBSSU-RESCUE-OPS`
 - Branch: `feat/uf-01-secure-web-foundation`
-- Base: `origin/main` at `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`
-- Local HEAD at review: `713c0a5e48119ae265b9ed606cdbd9d04a3e3048`
-- Sprint 4 PR #4: merged; merge commit `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`
-- Worktree: no tracked modifications before this report; two pre-existing root
-  attachments remain untracked and untouched.
-- Local visual workflow commits carried onto this branch: `b3baa0a`, `b09dbd7`,
-  `713c0a5`.
+- Pre-reconciliation HEAD: `357bedad9ef81933ecf57300a6cf4c92dac29f28`
+- Base: verified `origin/main` `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`
+- Sprint 4 commit is included in `origin/main`; PR #4 is merged.
+- The two unrelated root attachments remain untracked and untouched.
+- Local visual workflow prerequisite commits are in branch ancestry.
 
-## Contract evidence
+## Reconciled responses
 
-### `startMfaEnrollment`
+### MFA enrollment
 
-OpenAPI operation `startMfaEnrollment` references
-`#/components/schemas/MfaEnrollment`. That schema requires `enrollment_id`,
-`expires_at`, `state`, `delivery_status`, `challenge`, and `setup_handoff`.
-The implementation in `apps/api/src/identity/identity.service.ts` returns
-`enrollment_id`, `handoff` (`handoff_id`, `purpose`, `expires_at`) and
-`authentication_state`. This is a material response-shape mismatch and blocks
-contract-compliant MFA enrollment UI.
+`MfaEnrollment` now matches `IdentityService.startMfaEnrollment()`:
 
-### `listMyMemberships`
+- `enrollment_id`
+- `handoff` containing the UUID handle, `TOTP_SETUP` purpose, and expiry
+- `authentication_state: CHALLENGE_REQUIRED`
 
-OpenAPI `Membership` requires `id`, `version`, `created_at`, `organization_id`,
-`user_id`, `display_name`, `status`, `availability`, and `role_ids`. The
-implementation returns `membership_id`, organization name/slug/status,
-display name, status, availability, and `roles` containing `code` and `name`.
-The service's role codes are not specified by the approved response schema.
-This blocks contract-compliant membership selection and role-aware navigation.
+No secret, seed, URI, QR, recovery value, or session token is present in this
+generic response. The dedicated one-time, client-bound handoff endpoint alone
+releases synthetic TOTP setup material under its approved vendor content type.
+`startMfaReplacement` has a separate schema describing its additional
+challenge metadata. The shared administrative Membership contract remains
+unchanged; the self-membership operation has dedicated schemas matching its
+actual projection.
 
-## Security and scope assessment
+The OpenAPI-documented 200/202 status codes are now returned for the relevant
+auth operations. The earlier HTTP run caught absent no-store headers on
+enrollment; the controller now sends the documented `Cache-Control: no-store`
+and `Pragma: no-cache` headers. MFA and membership semantics are detailed in
+the [reconciliation record](../api/UF-01-CONTRACT-RECONCILIATION.md).
 
-- No web source, API implementation, OpenAPI, database schema, migration,
-  permission, or operational behavior was changed.
-- UF-01 remains exactly seven proposed browser routes and the ten existing API
-  dependencies captured in `../planning/UF-01-SCOPE.v1.json`.
-- No browser session transport is invented. Backend cookie/CSRF mechanisms were
-  inspected; actual browser cookie, refresh, and CSRF behavior has not been run
-  in this preflight.
-- No test credentials, tokens, TOTP values, or encryption key contents were
-  read into this report.
-- Product authentication, API, database, and browser tests were not run because
-  implementation stopped at the contract gate. This report makes no runtime
-  test claims.
+### Membership and navigation
 
-## Required resolution
+`GET /me/memberships` now documents the actual self-service fields:
+`membership_id`, organization id/name/slug/status, display name, membership
+status, availability, and role summaries (`code`, `name`). Existing role-code
+syntax and the five Q-01 tenant templates are preserved. Known template codes
+may shape navigation display only; custom/unknown codes produce no operational
+navigation. The API remains the sole authorization authority. Platform
+Super Admin has no implicit tenant membership or incident access.
 
-The owner-authorized implementation cannot proceed for the complete increments
-until the two existing response contracts are reconciled. Record an approved,
-bounded correction aligning the OpenAPI schemas with the actual approved
-service responses, or approve a specific compatible backend response behavior.
-Keep operation IDs, permissions, entities, and operational scope unchanged.
-After reconciliation, rerun OpenAPI/reference/schema checks and resume UF-01
-preflight before coding.
+## Actual checks
 
-## Validation performed
+| Command/check                                                                             | Result                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test -- --run apps/api/test/contract.test.ts`                                        | PASS, 12 tests; all component schemas compiled; positive/negative MFA and membership examples; administrative Membership schema unchanged; exact frozen UF-01 scope check                                                                                   |
+| `npm run test:integration` with `PBSSU_TEST_DATABASE_STATE=.cache/sprint4a/database.json` | PASS, 6 files / 43 tests on the guarded loopback-only Sprint 4-A synthetic database; includes actual Nest HTTP membership response, tenant-only Commander login/enrollment/handoff/confirmation, other auth, tenant/RBAC, and incident/location regressions |
+| `npm run scope:sprint3a`                                                                  | PASS: frozen Sprint 3-A table and 75-operation invariants                                                                                                                                                                                                   |
+| `npm run scope:sprint3b`                                                                  | PASS: seven Sprint 3 operations, exact incident/location permissions and no expansion                                                                                                                                                                       |
+| `npm run scope:sprint3c`                                                                  | PASS: frozen Sprint 3-C inventory and 75 OpenAPI operations                                                                                                                                                                                                 |
+| `npm run scope:sprint4a`                                                                  | PASS: 75 unique operations; exact Sprint 4 inventory and permission parity                                                                                                                                                                                  |
+| `npm test -- --run`                                                                       | PASS, 30 tests across three files after authorized fingerprint-delta reconciliation; includes the frozen seven-route/ten-operation UF-01 inventory                                                                                                          |
+| `npm run typecheck`                                                                       | PASS (API and web; no diagnostics)                                                                                                                                                                                                                          |
+| `npm run lint`, `npm run build`, `npm run build:web`                                      | PASS after controller status/cache correction                                                                                                                                                                                                               |
+| Targeted `npx prettier --check` on changed source, contract and document files            | PASS                                                                                                                                                                                                                                                        |
+| `npm run format:check` (whole repository)                                                 | Reports 15 existing unmodified files as unformatted. No unrelated files were reformatted; every UF-01 changed file passes the targeted check.                                                                                                               |
+| Relative link check, JSON parse, `git diff --check`                                       | PASS                                                                                                                                                                                                                                                        |
+| Dedicated OpenAPI linter                                                                  | Not installed (`npm ls @redocly/cli @apidevtools/swagger-parser swagger-cli --depth=0` reports empty). Ajv 2020-12 compiles every component schema and local references resolve; full OAS 3.1 lint is not claimed.                                          |
 
-| Check                        | Evidence                                                                                                                  | Result                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Branch/base check            | `git status --short --branch`, `git rev-parse HEAD`, `git rev-parse origin/main`                                          | PASS: expected feature branch; base is merged Sprint 4 main; attachments remain untracked |
-| Response contract comparison | Read OpenAPI `MfaEnrollment` and `Membership`; inspected `IdentityService.startMfaEnrollment()` and `listMyMemberships()` | BLOCKED: two response shape mismatches above                                              |
-| Scope inventory              | Read `UF-01-SCOPE.v1.json`                                                                                                | No scope expansion proposed                                                               |
-| Runtime/API/browser tests    | Not run                                                                                                                   | BLOCKED intentionally before implementation; no result claimed                            |
+The first full integration attempt passed 42/43; the only failure was the
+missing no-store header assertion. After the controller correction, the repeat
+passed 43/43. No test authentication bypass or database reset was used. The
+database preflight ran read-only; tests used synthetic UUID identities and
+records in the existing isolated test database.
+
+OpenAPI component/reference compilation is standards-aware JSON Schema 2020-12
+structural validation through Ajv. No dedicated OpenAPI 3.1 linter was present
+or executed, so full OpenAPI standard conformance is not claimed.
+
+## Scope gate
+
+The approved exact scope remains seven browser routes and ten existing API
+operations in [`UF-01-SCOPE.v1.json`](../planning/UF-01-SCOPE.v1.json): login,
+MFA, session lifecycle, self-membership/organization selection, role-aware
+navigation, and read-only incident list/detail. Zero backend operation IDs,
+permissions, roles, or database entities are added. No incident/resource
+mutation or dispatch interface is included.
+
+The scope is frozen for implementation. UI behavior, browser cookie/CSRF
+integration, screenshots, accessibility, and product Playwright cases are not
+yet run; those are UF-01A/B/C implementation acceptance gates.
