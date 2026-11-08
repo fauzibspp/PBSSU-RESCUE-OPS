@@ -23,6 +23,7 @@ All identities and records below were synthetic and created in the isolated loca
 | Multi-tenant Operator | Operator in tenant A; membership without operational grants in tenant B | MFA was required due to tenant A; post-MFA incident read in tenant B was denied. |
 | Ordinary Field Responder | Responder membership; no platform grant | Password-only handoff was issued; incident creation was denied with HTTP 403. |
 | Platform-only administrator | MFA-protected platform grant; no tenant membership | MFA was required; an expired challenge was rejected; after valid TOTP, tenant incident read remained denied. |
+| Privilege-discovery failure probe | Tenant-only Commander; identity role temporarily denied membership SELECT | HTTP login failed with a generic 500; no tenant/database details or email were returned, and session/challenge/handoff counts did not change. The SELECT grant was restored in `finally`. |
 
 The tenant-only Commander and Operator fixtures do not contain any platform grant. The only platform grant used in this suite belongs to the separate platform-only identity.
 
@@ -30,8 +31,8 @@ The tenant-only Commander and Operator fixtures do not contain any platform gran
 
 | Command | Result |
 | --- | --- |
-| `$env:PBSSU_IDENTITY_KEY_FILE=Join-Path $env:LOCALAPPDATA 'PBSSU-RESCUE-OPS\sprint3b-identity-keys.json'; $env:PBSSU_TEST_DATABASE_STATE=(Resolve-Path '.cache/sprint3d/database.json').Path; npm run test:integration -- --run apps/api/test/incident.http.integration.test.ts` | PASS: 1 file, 5 tests. |
-| Same environment; `npm run test:integration` | PASS: 5 files, 35 tests, including identity/MFA, restricted-role RLS, incident/location, audit and regression coverage. |
+| `$env:PBSSU_IDENTITY_KEY_FILE=Join-Path $env:LOCALAPPDATA 'PBSSU-RESCUE-OPS\sprint3b-identity-keys.json'; $env:PBSSU_TEST_DATABASE_STATE=(Resolve-Path '.cache/sprint3d/database.json').Path; npm run test:integration -- --run apps/api/test/incident.http.integration.test.ts` | PASS: 1 file, 6 tests, including the real HTTP privilege-query failure injection. |
+| Same environment; `npm run test:integration` | PASS: 5 files, 36 tests, including identity/MFA, restricted-role RLS, incident/location, audit and regression coverage. |
 | `npm test` | PASS: 2 files, 17 unit/contract tests. |
 | `npm run format` | PASS; formatted the two changed TypeScript files. |
 | `npm run format:check` | PASS. |
@@ -45,7 +46,7 @@ The tests used the existing `.cache/sprint3d/database.json` isolated local test 
 ## Evidence limits and remaining risks
 
 - The HTTP suite verifies challenge purpose, successful TOTP flows, expired challenge rejection, assurance-gated access and tenant isolation. Existing MFA integration coverage exercises successful TOTP proof and handoff. Production identity-provider, deployment, logging, and key-management behavior were not tested.
-- No explicit database fault injection was added for a failed privilege-discovery query; the code propagates lookup errors and does not fall back to an unprivileged result.
+- The failure test temporarily revokes `SELECT` on `app.memberships` from the identity role in the isolated test database to force a privilege-discovery query error. It verifies a generic failure and no session/challenge/handoff mutation, then restores the grant in `finally`. The test does not emulate production database outages or observability infrastructure.
 - The suite does not claim a formal security audit or production readiness.
 - Sprint 3 scope remains seven incident/location operations and three incident tables. No API, permission, role, table, or migration inventory changed.
 - Existing M01-R01, Q-05, Q-06 and Q-08 remain open. Auditor cancellation-reason retrieval and Sprint 4 assignment evidence remain deferred.

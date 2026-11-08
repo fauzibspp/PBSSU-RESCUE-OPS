@@ -648,6 +648,57 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     expect([403, 404]).toContain(tenantRead.status);
   });
 
+  it("fails closed without a session when RLS-backed privilege discovery fails", async () => {
+    const before = await owner.query<{
+      sessions: number;
+      challenges: number;
+      handoffs: number;
+    }>(
+      `select
+         (select count(*)::int from app.sessions where user_id=$1) sessions,
+         (select count(*)::int from app.auth_challenges where user_id=$1) challenges,
+         (select count(*)::int from app.credential_handoffs where user_id=$1) handoffs`,
+      [userId],
+    );
+    await owner.query(
+      "revoke select on app.memberships from pbssu_m01_identity",
+    );
+    try {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          login: email,
+          password,
+          client_kind: "MOBILE",
+          client_binding: binding,
+        }),
+      });
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).not.toMatch(
+        /permission denied|memberships|tenant|role|privilege/i,
+      );
+      expect(body).not.toContain(email);
+    } finally {
+      await owner.query(
+        "grant select on app.memberships to pbssu_m01_identity",
+      );
+    }
+    const after = await owner.query<{
+      sessions: number;
+      challenges: number;
+      handoffs: number;
+    }>(
+      `select
+         (select count(*)::int from app.sessions where user_id=$1) sessions,
+         (select count(*)::int from app.auth_challenges where user_id=$1) challenges,
+         (select count(*)::int from app.credential_handoffs where user_id=$1) handoffs`,
+      [userId],
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+
   it("executes all seven approved routes through real JWT, session, MFA, tenant, RBAC, and restricted DB paths", async () => {
     const headers = {
       authorization,
