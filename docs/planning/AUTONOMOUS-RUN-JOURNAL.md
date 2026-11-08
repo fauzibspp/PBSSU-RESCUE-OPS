@@ -12,7 +12,7 @@
 - **Open gates carried forward:** M01-R01, Q-05, Q-06, Q-08, production key management/logging, Auditor cancellation-reason retrieval, and Sprint 4 operational policies.
 - **Completed in this run:** read `AGENTS.md`, both supplied orchestration documents and the approved roadmap/security/contracts; verified the live remote and merged PRs; fetched origin; created the branch; copied the two planning documents; prepared the Sprint 4 readiness review and validation record.
 - **Work mode:** documentation and contract analysis only. No migration, application implementation, dependency, Docker, deployment, push, or merge action.
-- **Validation evidence:** recorded in [Sprint 4 readiness validation](../testing/SPRINT-4-READINESS-VALIDATION.md). No runtime application test result is claimed for this documentation task.
+- **Validation evidence:** recorded in [Sprint 4 preflight validation](../testing/SPRINT-4-PREFLIGHT-VALIDATION.md). No runtime application test result is claimed for that documentation task.
 - **Commit:** `f0a63c1594a108fa7c511b8087f86c7e25c42224` (`docs: bootstrap autonomous development and Sprint 4 readiness`).
 - **Next action:** stop at the Sprint 4 implementation authorization boundary and present the unresolved owner-policy questions for review.
 
@@ -74,3 +74,13 @@
 - **Next:** Run the full preflight on the updated documents. Do not start Sprint 4-A until it passes.
 - **Preflight result:** PASS on 2026-11-08. `npm test -- --run` passed 19/19 tests; lint, typecheck, build, format check, Sprint 3-A/B/C scope regressions, OpenAPI/schema checks, 75-operation/3-table/4-operation/permission inventory, relative links, targeted secret scan and `git diff --check` passed. The manifest is now FROZEN at exactly three tables and four existing operations. No runtime/database integration tests were claimed; those are S4-A gates.
 - **Next authorized slice:** Commit the S4-P-02 approval and frozen contract/preflight artifacts, then begin Sprint 4-A database implementation on this feature branch. Keep M01-R01, Q-05, Q-06, Q-08, production key/logging and Auditor-view gates open.
+
+## Run 2026-11-08 — Sprint 4-A database foundation
+
+- **Baseline:** `feat/sprint-4-assignment-movement`, scope freeze `124cc37942e5f88124fcbc0013b92064e0bc2b4e`; verified `origin/main` remains `4d64be934497a4d004a9d1860bb3220a07450fee`. The two unrelated root attachments and ignored local resources were preserved.
+- **Migrations:** Added forward-only `008-sprint4-permissions` and `009-sprint4-assignment-movement`. They create only the four pre-existing permission keys and three frozen tables. Historical migrations 001-007 were not modified.
+- **Security:** Added RLS/FORCE RLS and tenant policies on all three tables; tenant-composite FKs; global active canonical-user partial uniqueness; active vehicle uniqueness; immutable movement protection; assignment runtime update restricted to `released_at` and only once. Added exact organization-onboarding role scopes. No platform operational grant.
+- **Validation:** A fresh unique loopback-only PostgreSQL 18.6/PostGIS 3.7 tmpfs database completed migrations 001-009 and repeat-up. Inventory: 29 app tables / 54 permissions. Focused DB plus M01 regression: 17/17; full integration: 6 files/42 tests; unit/contract 19/19; lint, typecheck, build, format:check, scope:sprint4a all PASS. See [Sprint 4-A validation](../testing/SPRINT-4A-DATABASE-VALIDATION.md).
+- **Initial failures and fixes:** The first full regression identified stale 26-table/50-key assertions; updated them for the frozen Sprint 4 additions. A privilege check was corrected to assert column-level `released_at` UPDATE rather than broad table UPDATE. A fresh second isolated database verified the corrected migration.
+- **Current phase boundary:** Sprint 4-A database work is complete and ready for its local checkpoint commit. Sprint 4-B APIs, authorization behavior and generic HTTP conflict normalization have not yet been implemented. No incident assignment API, movement API, dispatch, movement verification, or vehicle administration guard is claimed.
+- **Open gates:** M01-R01, Q-05, Q-06, Q-08, production KMS/key lifecycle, production logging and Auditor reason retrieval remain OPEN/deferred. No push, merge, deployment or real operational use.

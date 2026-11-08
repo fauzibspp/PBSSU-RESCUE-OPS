@@ -1,6 +1,6 @@
 # Data dictionary
 
-PBSSU-DATA-001 v0.3.0, 2026-11-07; approved logical baseline, no physical migrations. '?' means nullable; common field rules below apply.
+PBSSU-DATA-001 v0.3.0, 2026-11-07; approved logical baseline. Sprint 4-A physical implementation is migrations 008-009, with execution evidence in [Sprint 4-A validation](../testing/SPRINT-4A-DATABASE-VALIDATION.md). '?' means nullable; common field rules below apply.
 
 ## Common fields and classification
 
@@ -23,9 +23,9 @@ Classification: I = internal configuration; O = restricted operational; P = pers
 | vehicles | call_sign text; registration_ciphertext? text; service_state AVAILABLE/MAINTENANCE/RETIRED; kind text | O/P |
 | incidents | title text; category FLOOD_MONITORING/FIRE/RESCUE/OTHER; status lifecycle enum; occurred_at instant; source_kind text; source_detail_ciphertext? text; outcome? text (nonempty on COMPLETED); closed_at? instant; version positive; lifecycle commands compare-and-swap base_version; bounded cancellation reason is protected audit metadata, not general incident storage | O/P |
 | incident_locations | incident_id uuid; label text; point? geography(Point,4326); accuracy_m? numeric >=0 paired with point. In `LocationInput`, point and accuracy are absent together or supplied together; a supplied point requires accuracy. Coordinates without a measured accuracy are not accepted. description? text; create request carries parent incident base_version and atomically increments incident.version | O |
-| incident_personnel | incident_id uuid; membership_id uuid; user_id uuid (canonical membership user, composite-bound to the tenant membership); duty? text NULL, no default, no vocabulary; assigned_at instant; released_at? instant; partial UNIQUE(user_id) WHERE released_at IS NULL enforces global active uniqueness | O/P |
-| incident_vehicles | incident_id uuid; vehicle_id uuid; assigned_at instant; released_at? instant | O |
-| movement_logs | incident_id uuid; incident_vehicle_id uuid; location_id? uuid; kind DEPARTURE/ARRIVAL/RETURN/OTHER; occurred_at/received_at instant; actor_membership_id uuid; supersedes_id? uuid; note? text | O |
+| incident_personnel | incident_id uuid; membership_id uuid; user_id uuid (canonical membership user, composite-bound to the tenant membership); duty? text NULL, no default, no vocabulary; assigned_at instant; released_at? instant; partial UNIQUE(user_id) WHERE released_at IS NULL enforces global active uniqueness; runtime can set released_at once and cannot change other fields/delete history | O/P |
+| incident_vehicles | incident_id uuid; vehicle_id uuid; assigned_at instant; released_at? instant; partial UNIQUE(vehicle_id) WHERE released_at IS NULL; runtime can set released_at once and cannot change other fields/delete history | O |
+| movement_logs | incident_id uuid; incident_vehicle_id uuid; location_id? uuid; kind DEPARTURE/ARRIVAL/RETURN/OTHER; occurred_at/received_at instant; actor_membership_id uuid; supersedes_id? uuid; note? text; runtime insert/select only, immutable | O |
 | situation_updates | incident_id uuid; location_id uuid; actor_membership_id uuid; observation text; risk LOW/MODERATE/HIGH/UNKNOWN; point? geography; accuracy_m? numeric; occurred_at/received_at instant; supersedes_id? uuid | O |
 | incident_media | incident_id uuid; location_id? uuid; update_id? uuid; object_key text unique server-generated; mime_type text; byte_size bigint >0; sha256 text 64 hex; state PENDING_UPLOAD/QUARANTINED/READY/REJECTED; captured_at? instant; uploaded_by_membership_id uuid | O/P |
 | agencies | name text; agency_kind text; contact_ciphertext? text; local directory only | O/P |

@@ -10,6 +10,7 @@ import {
 } from "../src/database/connection.js";
 import * as incidentPermissions from "../src/database/migrations/005-incident-permissions.js";
 import * as locationPermissions from "../src/database/migrations/007-location-permissions.js";
+import * as sprint4Permissions from "../src/database/migrations/008-sprint4-permissions.js";
 
 interface DevelopmentDatabaseState {
   ownerUrl: string;
@@ -189,7 +190,7 @@ describe("M01 PostgreSQL foundation", () => {
     await runtime.destroy();
   });
 
-  it("creates the 26-table migration chain and forces RLS on tenant tables", async () => {
+  it("creates the 29-table migration chain and forces RLS on tenant tables", async () => {
     const counts = await owner.executeQuery(
       sql<{ count: string }>`
         select count(*)::text as count
@@ -197,7 +198,7 @@ describe("M01 PostgreSQL foundation", () => {
         where table_schema = 'app' and table_type = 'BASE TABLE'
       `.compile(owner),
     );
-    expect(counts.rows[0]?.count).toBe("26");
+    expect(counts.rows[0]?.count).toBe("29");
 
     const policies = await owner.executeQuery(
       sql<{
@@ -215,11 +216,12 @@ describe("M01 PostgreSQL foundation", () => {
             'organizations', 'memberships', 'roles', 'role_permissions',
             'membership_roles', 'audit_logs', 'organization_settings',
             'organization_invitations', 'invitation_roles', 'vehicles',
-            'incidents', 'incident_locations', 'change_events'
+            'incidents', 'incident_locations', 'change_events',
+            'incident_personnel', 'incident_vehicles', 'movement_logs'
           )
       `.compile(owner),
     );
-    expect(policies.rows).toHaveLength(13);
+    expect(policies.rows).toHaveLength(16);
     expect(
       policies.rows.every((row) => row.row_security && row.force_row_security),
     ).toBe(true);
@@ -237,6 +239,8 @@ describe("M01 PostgreSQL foundation", () => {
       "005-incident-permissions",
       "006-protected-cancellation-audit",
       "007-location-permissions",
+      "008-sprint4-permissions",
+      "009-sprint4-assignment-movement",
     ]);
     expect(new Set(policies.rows.map((row) => row.table_name))).toEqual(
       new Set([
@@ -253,6 +257,9 @@ describe("M01 PostgreSQL foundation", () => {
         "incidents",
         "incident_locations",
         "change_events",
+        "incident_personnel",
+        "incident_vehicles",
+        "movement_logs",
       ]),
     );
   });
@@ -272,6 +279,10 @@ describe("M01 PostgreSQL foundation", () => {
       "transitionIncident",
       "listLocations",
       "createLocation",
+      "getAssignments",
+      "setAssignments",
+      "listMovements",
+      "createMovement",
     ]);
     expect(codes.size).toBe(expectedCodes.size);
     expect([...expectedCodes].every((code) => codes.has(code))).toBe(true);
@@ -313,6 +324,7 @@ describe("M01 PostgreSQL foundation", () => {
     });
     await owner.transaction().execute((tx) => incidentPermissions.up(tx));
     await owner.transaction().execute((tx) => locationPermissions.up(tx));
+    await owner.transaction().execute((tx) => sprint4Permissions.up(tx));
     const alpha = await tenantTransaction(owner, tenantA, userA, (tx) =>
       sql<{
         role_code: string;
@@ -404,6 +416,101 @@ describe("M01 PostgreSQL foundation", () => {
       {
         role_code: "READ_ONLY_AUDITOR",
         permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
+    const sprint4Rows = await tenantTransaction(owner, tenantA, userA, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp
+        join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantA}
+          and p.code in ('getAssignments','setAssignments','listMovements','createMovement')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    expect(sprint4Rows.rows).toHaveLength(11);
+    expect(
+      sprint4Rows.rows.every((grant) => {
+        if (["getAssignments", "listMovements"].includes(grant.permission_code))
+          return [
+            "ORGANIZATION_ADMIN",
+            "CONTROL_ROOM_OPERATOR",
+            "INCIDENT_COMMANDER",
+            "READ_ONLY_AUDITOR",
+          ].includes(grant.role_code)
+            ? grant.resource_scope === "TENANT"
+            : grant.role_code === "FIELD_RESPONDER" &&
+                grant.resource_scope === "ASSIGNED";
+        if (grant.permission_code === "setAssignments")
+          return (
+            ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"].includes(
+              grant.role_code,
+            ) && grant.resource_scope === "TENANT"
+          );
+        return ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"].includes(
+          grant.role_code,
+        )
+          ? grant.resource_scope === "TENANT"
+          : grant.role_code === "FIELD_RESPONDER" &&
+              grant.resource_scope === "ASSIGNED";
+      }),
+    ).toBe(true);
+    expect(
+      sprint4Rows.rows.some(
+        (grant) =>
+          grant.role_code === "ORGANIZATION_ADMIN" &&
+          ["setAssignments", "createMovement"].includes(grant.permission_code),
+      ),
+    ).toBe(false);
+    expect(
+      sprint4Rows.rows.some(
+        (grant) => grant.role_code === "PLATFORM_SUPER_ADMIN",
+      ),
+    ).toBe(false);
+    const operatorSprint4Rows = await tenantTransaction(
+      owner,
+      tenantB,
+      userB,
+      (tx) =>
+        sql<{
+          role_code: string;
+          permission_code: string;
+          resource_scope: string;
+        }>`
+          select r.code role_code,p.code permission_code,rp.resource_scope
+          from app.role_permissions rp
+          join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+          join app.permissions p on p.id=rp.permission_id
+          where rp.organization_id=${tenantB}
+            and p.code in ('getAssignments','setAssignments','listMovements','createMovement')
+          order by r.code,p.code
+        `.execute(tx),
+    );
+    expect(operatorSprint4Rows.rows).toEqual([
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createMovement",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "getAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listMovements",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "setAssignments",
         resource_scope: "TENANT",
       },
     ]);

@@ -939,6 +939,99 @@ describe("M01 privileged MFA lifecycle", () => {
         resource_scope: "TENANT",
       },
     ]);
+    const sprint4TemplateGrants = await owner.query<{
+      role_code: string;
+      permission_code: string;
+      resource_scope: string;
+    }>(
+      `select r.code role_code,p.code permission_code,rp.resource_scope
+       from app.roles r join app.role_permissions rp
+         on rp.organization_id=r.organization_id and rp.role_id=r.id
+       join app.permissions p on p.id=rp.permission_id
+       where r.organization_id=$1 and p.code=any($2::text[])
+       order by r.code,p.code`,
+      [
+        firstAdminOrganizationId,
+        ["getAssignments", "setAssignments", "listMovements", "createMovement"],
+      ],
+    );
+    expect(sprint4TemplateGrants.rows).toEqual([
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createMovement",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "getAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listMovements",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "setAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "createMovement",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "getAssignments",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listMovements",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "createMovement",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "getAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listMovements",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "setAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "getAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listMovements",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "getAssignments",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listMovements",
+        resource_scope: "TENANT",
+      },
+    ]);
     await owner.query("select set_config('app.organization_id',$1,false)", [
       organizationId,
     ]);
