@@ -72,10 +72,24 @@ test resources, but they do not offer a general-purpose development stack
 stop/reset workflow; inspect their unique resource scope before using them.
 
 API unit and contract tests: `npm test -- --run`.
-Database-backed integration tests: set `PBSSU_TEST_DATABASE_STATE` to the
-isolated Sprint 4-A state file, then run `npm run test:integration`. These suites
-remain separate from browser tests; browser coverage does not bypass API
+Database-backed integration tests require an explicit isolated Sprint 4-A state
+file. Create a fresh state using `npm run db:sprint4a`, retain the generated
+file under `.cache/sprint4a/`, then apply the approved migrations with
+`npm run db:migrate:sprint4a`. Set
+`$env:PBSSU_TEST_DATABASE_STATE = ".cache/sprint4a/<generated-state-file>.json"`
+and run `npm run test:integration`. The launcher refuses a missing or
+out-of-scope state file and performs a read-only check of the loopback URLs,
+pinned database image identity, PostgreSQL/PostGIS versions, migrations,
+application table count, and permission count before starting Vitest. It never
+creates, resets, migrates, or deletes test databases. These suites remain
+separate from browser tests; browser coverage does not bypass API
 authentication, MFA, RBAC, RLS, or assignment rules.
+
+If the state file does not match the accepted Sprint 4-A inventory (29 tables,
+54 permission keys, migrations 001–009), the launcher stops. Inspect the state
+file and database using the project’s documented isolated-resource procedures;
+never point the launcher at a production or shared database to make the check
+pass.
 
 ## Evidence and limitations
 

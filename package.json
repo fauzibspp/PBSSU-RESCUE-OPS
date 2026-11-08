@@ -25,7 +25,7 @@
     "format": "prettier --write apps/api apps/web tests/browser scripts docs/planning/VISUAL-DEVELOPMENT-WORKFLOW.md docs/testing/VISUAL-DEVELOPMENT-VALIDATION.md package.json playwright.config.ts tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
     "format:check": "prettier --check apps/api apps/web tests/browser scripts docs/planning/VISUAL-DEVELOPMENT-WORKFLOW.md docs/testing/VISUAL-DEVELOPMENT-VALIDATION.md package.json playwright.config.ts tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "node --import tsx scripts/run-integration-tests.ts",
     "db:migrate:local": "node --import tsx scripts/migrate-database.ts",
     "db:sprint3a": "node --import tsx scripts/sprint3a-database.ts",
     "db:sprint3b": "node --import tsx scripts/sprint3b-database.ts",
