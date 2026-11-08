@@ -1876,7 +1876,7 @@
           "M05"
         ],
         "summary": "Apply an authorized, versioned incident lifecycle command.",
-        "description": "Q-02 lifecycle: DRAFT→OPEN→DISPATCHED→ON_SCENE→MONITORING→RETURNING→COMPLETED→CLOSED, plus ON_SCENE→RETURNING. In Sprint 3 only DRAFT→OPEN and CANCELLED from DRAFT/OPEN are supported. CANCELLED requires Incident Commander authority and a nonempty reason; CLOSED is Commander-only from COMPLETED; COMPLETED requires a nonempty outcome. CLOSED and CANCELLED cannot be reopened. DISPATCHED and assignment/arrival-dependent transitions return 409 PREREQUISITE_UNAVAILABLE until Sprint 4 supplies verified assignment/movement evidence. Other unsupported edges return 409 INVALID_TRANSITION. Every successful transition increments version exactly once and atomically appends one change event and one redacted audit record. Stale base_version returns 409 STALE_VERSION and performs no mutation. No external dispatch or acknowledgement is implied. Cancellation reason is restricted operational information, stored only in protected audit metadata and never in the append-only change-event payload.",
+        "description": "Q-02 lifecycle model: DRAFT→OPEN→DISPATCHED→ON_SCENE→MONITORING→RETURNING→COMPLETED→CLOSED, plus ON_SCENE→RETURNING. Supported Sprint 3 and Sprint 4 edges are DRAFT→OPEN, CANCELLED from DRAFT/OPEN by Incident Commander with a nonempty reason, and (in Sprint 4 only) explicit human OPEN→DISPATCHED when an eligible active responder and AVAILABLE vehicle are assigned to that incident and tenant without conflicting active assignments. DISPATCHED is an internal assignment state only and does not imply external dispatch or acknowledgement. Sprint 4 does not support ON_SCENE, MONITORING, RETURNING, COMPLETED, CLOSED, post-dispatch cancellation, or resource release/replacement. Unsupported/deferred edges return 409 PREREQUISITE_UNAVAILABLE when prerequisites or an approved workflow are unavailable; invalid graph edges return 409 INVALID_TRANSITION. From DISPATCHED, assignments remain active until a separately authorized future resource-release workflow explicitly ends them; no automatic assignment release occurs. Future COMPLETED/CLOSED transitions must be blocked while assignment intervals remain unresolved. Every supported successful transition increments version once and atomically appends the corresponding change event and redacted audit record. Stale base_version returns 409 STALE_VERSION without mutation. Cancellation reasons are restricted, stored only in protected audit metadata, and excluded from generic event payloads.",
         "x-requirements": [
           "FR-007",
           "FR-017"
@@ -2252,7 +2252,7 @@
           "M06"
         ],
         "summary": "Human-authorized online replacement of active assignment set.",
-        "description": "Human-authorized online replacement of active assignment set. base_version is incident.version; successful changes increment it. Return assignment UUIDs for movement recording. Release removed assignments and preserve history. No external notification or automatic dispatch.",
+        "description": "Human-authorized online replacement of the active assignment sets. Arrays are complete sets; an empty set explicitly releases all active assignments before DISPATCHED. Identical sets are no-ops. Re-adding a released resource creates a new assignment interval and UUID; history is preserved. base_version is incident.version; each successful change increments it once. Global active responder uniqueness is enforced by canonical users.id across all organizations, while active membership is validated in the selected tenant. Conflicts return a stable generic response without disclosing cross-tenant records. No external notification or automatic dispatch.",
         "x-requirements": [
           "FR-010"
         ],
@@ -8711,6 +8711,11 @@
           "actor_membership_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "supersedes_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional same-incident movement record corrected by this append-only record."
           }
         },
         "required": [
@@ -10424,7 +10429,10 @@
             "format": "uuid"
           },
           "duty": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "minLength": 1,
             "maxLength": 100
           },
@@ -10442,7 +10450,6 @@
         "required": [
           "id",
           "membership_id",
-          "duty",
           "assigned_at"
         ]
       },

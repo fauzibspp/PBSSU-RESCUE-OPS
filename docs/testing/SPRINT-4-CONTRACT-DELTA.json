@@ -1,0 +1,16 @@
+{
+  "purpose": "Records owner-approved Sprint 4 duty, global responder uniqueness and lifecycle contract clarifications with their supporting baseline-document fingerprints.",
+  "authorization_date": "2026-11-08",
+  "scope": "Frozen 3-table/four-existing-operation Sprint 4 contract. S4-P-01 duty is optional and nullable with no request field, default or invented vocabulary. S4-P-02 globally limits one active assignment per canonical users.id across organizations, enforced by database partial unique index and same-tenant membership composite binding without cross-tenant lookups. Technical Lead clarification preserves active intervals after DISPATCHED until a separately authorized future release; Sprint 4 implements no such release or terminal transitions.",
+  "authorization_source": "Project Owner instruction: PBSSU RESCUE OPS — RESUME AUTONOMOUS SPRINT 4 EXECUTION; bounded Technical Lead policy clarification 2026-11-08",
+  "files": {
+    "docs/api/openapi.json": "cecd0707ad8ee3f87ce3278f33268dacb3ee700666b579bbb4d0351ca7dd97b2",
+    "docs/architecture/DATA-DICTIONARY.md": "ccad629261634176c362877134348d7b6ffcba39a3f1c7c5fa1757d171376aeb",
+    "docs/architecture/DATABASE-SCHEMA.md": "34525f61f7dea296b3b0acfec066d69e46b272f02a67f88bf01bbbc85202c76b",
+    "docs/planning/DECISION-REGISTER.md": "421c53056daf2103f39b02755c49186cef837652f1130a45cea02865db15b147",
+    "docs/requirements/TRACEABILITY.md": "d4c0c74ad52f4f4b082d7bb659e015afa0a87158da1a309d0a639f69aaf98204",
+    "docs/testing/TEST-STRATEGY.md": "29edd99a4317f5341610d246ae92ce8c54aff7dd2b4f191eaab3a8cec0b00d8e",
+    "docs/requirements/SRS.md": "98e0dd4b02160d6099665a14b3573c50d8c2e94ecbac1524d8135156164a60ca",
+    "docs/security/AUTHORIZATION-MODEL.md": "4dac38b09e90da9dd707f6ef24abff15980d4e41958ad643624160a1fb3d8542"
+  }
+}

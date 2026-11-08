@@ -8,6 +8,10 @@ import { VehicleController } from "./vehicles/vehicle.controller.js";
 import { VehicleService } from "./vehicles/vehicle.service.js";
 import { IncidentController } from "./incidents/incident.controller.js";
 import { IncidentService } from "./incidents/incident.service.js";
+import { AssignmentController } from "./assignments/assignment.controller.js";
+import { AssignmentService } from "./assignments/assignment.service.js";
+import { MovementController } from "./movements/movement.controller.js";
+import { MovementService } from "./movements/movement.service.js";
 
 @Module({
   controllers: [
@@ -15,12 +19,16 @@ import { IncidentService } from "./incidents/incident.service.js";
     OrganizationController,
     VehicleController,
     IncidentController,
+    AssignmentController,
+    MovementController,
   ],
   providers: [
     IdentityService,
     OrganizationService,
     VehicleService,
     IncidentService,
+    AssignmentService,
+    MovementService,
   ],
 })
 export class AppModule {}

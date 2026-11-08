@@ -450,6 +450,58 @@ export class IdentityService implements OnModuleDestroy {
           [orgId, roleId, locationRead.id, scope],
         );
       }
+      const sprint4Grants = await connection.query<{
+        id: string;
+        code: string;
+        valid_scopes: string[];
+      }>(
+        "select id,code,valid_scopes from app.permissions where code=any($1::text[]) and domain='TENANT'",
+        [
+          [
+            "getAssignments",
+            "setAssignments",
+            "listMovements",
+            "createMovement",
+          ],
+        ],
+      );
+      if (sprint4Grants.rows.length !== 4)
+        throw new Error("Sprint 4 permission catalogue incomplete");
+      const sprint4RoleGrants: ReadonlyArray<
+        readonly [string, string, "TENANT" | "ASSIGNED"]
+      > = [
+        ...(
+          [
+            "ORGANIZATION_ADMIN",
+            "CONTROL_ROOM_OPERATOR",
+            "INCIDENT_COMMANDER",
+            "READ_ONLY_AUDITOR",
+          ] as const
+        ).flatMap((role) =>
+          (["getAssignments", "listMovements"] as const).map(
+            (permission) => [role, permission, "TENANT"] as const,
+          ),
+        ),
+        ["FIELD_RESPONDER", "getAssignments", "ASSIGNED"],
+        ["FIELD_RESPONDER", "listMovements", "ASSIGNED"],
+        ["CONTROL_ROOM_OPERATOR", "setAssignments", "TENANT"],
+        ["INCIDENT_COMMANDER", "setAssignments", "TENANT"],
+        ["CONTROL_ROOM_OPERATOR", "createMovement", "TENANT"],
+        ["INCIDENT_COMMANDER", "createMovement", "TENANT"],
+        ["FIELD_RESPONDER", "createMovement", "ASSIGNED"],
+      ];
+      for (const [roleCode, permissionCode, scope] of sprint4RoleGrants) {
+        const roleId = templateIds.get(roleCode);
+        const permission = sprint4Grants.rows.find(
+          (grant) => grant.code === permissionCode,
+        );
+        if (!roleId || !permission?.valid_scopes.includes(scope))
+          throw new Error(`Invalid Sprint 4 grant ${permissionCode}`);
+        await connection.query(
+          "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,$4)",
+          [orgId, roleId, permission.id, scope],
+        );
+      }
       const settingsId = randomUUID();
       await connection.query(
         "insert into app.organization_settings (id,organization_id,key,value) values($1,$2,'primary_language','ms')",

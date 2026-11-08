@@ -21,11 +21,11 @@ No cascading operational deletion. Membership/user/vehicle deactivation preserve
 | role_permissions | Tenant; composite role FK, global permission FK; UNIQUE(org,role,permission); resource_scope TENANT/ASSIGNED constrained by catalog. |
 | membership_roles | Tenant extension; composite membership/role FKs; UNIQUE(org,membership,role). |
 | vehicles | Tenant; UNIQUE(org,call_sign); service state. |
-| incidents | Tenant; state/category/time/outcome/version; optional encrypted source detail. All lifecycle changes are command-only compare-and-swap operations; completion outcome and cancellation reason are mandatory for the applicable commands. |
+| incidents | Tenant; state/category/time/outcome/version; optional encrypted source detail. All lifecycle changes are command-only compare-and-swap operations. Sprint 4 supports only explicit OPEN→DISPATCHED after assignment prerequisites; ON_SCENE, MONITORING, RETURNING, COMPLETED and CLOSED remain unavailable. Future COMPLETED/CLOSED commands must reject unresolved active assignments. |
 | incident_locations | Tenant; composite incident FK; UNIQUE(org,incident,id), optional geography(Point,4326). `createLocation` requires the parent incident base_version and increments it exactly once in the same transaction. |
-| incident_personnel | Tenant; composite incident/member FKs; UNIQUE(org,incident,member); role, assignment/release times. |
-| incident_vehicles | Tenant; composite incident/vehicle FKs; UNIQUE(org,incident,vehicle); UNIQUE(org,incident,id). |
-| movement_logs | Tenant append-only; matching incident/vehicle-assignment tuple; optional matching location tuple; correction FK same incident. |
+| incident_personnel | Tenant; composite incident/member FKs; canonical `user_id` bound to the same-tenant membership with a composite FK; duty nullable with no default or vocabulary; active iff `released_at IS NULL`; partial UNIQUE (`user_id`) WHERE `released_at IS NULL` enforces one active assignment globally. Runtime may set `released_at` once and cannot update other columns or delete intervals. Unique conflicts must be normalized generically; no cross-tenant lookup is allowed. From DISPATCHED onward, interval remains active until a separately authorized future release workflow explicitly ends it; Sprint 4 has no such release operation. |
+| incident_vehicles | Tenant; composite incident/vehicle FKs; active iff `released_at IS NULL`; partial UNIQUE (`vehicle_id`) WHERE `released_at IS NULL`; runtime may set `released_at` once and cannot update other columns or delete intervals; re-add creates a new interval. From DISPATCHED onward, interval remains active until a separately authorized future release workflow explicitly ends it. |
+| movement_logs | Tenant append-only; matching incident/vehicle-assignment tuple; optional matching location tuple; correction FK same incident; runtime INSERT/SELECT only and immutable trigger. |
 | situation_updates | Tenant append-only; matching incident/location tuple; author membership; risk, optional point, correction FK same incident. |
 | incident_media | Tenant; matching incident/location and optional update tuple; unique server storage key; checksum/scan/access states. |
 | agencies | Tenant directory; UNIQUE(org,name); no verified official integration implied. |
@@ -97,6 +97,7 @@ erDiagram
   incident_locations |o--o{ change_events : changes
   incidents ||--o{ incident_personnel : assigns
   memberships ||--o{ incident_personnel : serves
+  users ||--o{ incident_personnel : canonical_responder
   incidents ||--o{ incident_vehicles : assigns
   vehicles ||--o{ incident_vehicles : serves
   incident_vehicles ||--o{ movement_logs : records

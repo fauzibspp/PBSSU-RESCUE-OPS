@@ -22,8 +22,8 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
 | T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
 | T-009a | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged. |
-| T-010 | Manual assignments only, active resource validation, no external dispatch. |
-| T-011 | Append-only movement corrections, assigned-vehicle check, occurred vs received time. |
+| T-010 | Manual assignment replacement/release history; optional nullable duty with no default and no request field; active membership; one active responder per canonical user and vehicle; tenant/RLS, concurrency, version CAS, no external dispatch; assignments remain active from DISPATCHED until a future explicit release workflow, with no Sprint 4 release or terminal transition. |
+| T-011 | Append-only movement corrections with same-incident lineage; G-07 TENANT/ASSIGNED authorization; assigned-vehicle check; server actor/received time vs human-reported occurred time; no automatic ON_SCENE transition. |
 | T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |
 | T-013 | Optional GPS, invalid coordinate pair/range, media checksum/type/size/malware, quarantine and cross-tenant download denial. |
 | T-014 | Encrypted outbox survives restart/offline; account/tenant partitions; local pending label. |
@@ -60,6 +60,8 @@ Sprint 3-B execution adds restricted-role PostgreSQL coverage for exact incident
 ## Release gates and evidence
 
 Sprint 3-C location tests cover list/create permissions and scopes, responder/platform fail-closed behavior, same-tenant parent lookup, coordinate and field validation, deterministic cursor ordering, immutable location version 1, parent incident compare-and-swap, stale and concurrent create conflicts, cross-tenant concealment, terminal incident guards, event/audit atomicity and rollback on injected event/audit failures. Run these with PostgreSQL under the restricted runtime role; mocks alone do not establish RLS or transaction behavior.
+
+Sprint 4-A database acceptance adds a dedicated fresh PostgreSQL/PostGIS environment and restricted-role tests for 29-table/54-key migration inventory, repeat-up behavior, RLS/FORCE RLS, tenant-context absence, cross-tenant reads/writes and composite-reference rejection. A concurrent two-tenant race for one canonical `users.id` must produce one active interval only; active vehicle uniqueness, one-time `released_at` mutation, retained history, nullable duty, immutable movement rows, and transaction rollback are also verified. Migration owner tests verify catalog backfill; identity integration verifies the exact onboarding template grants. These checks do not yet establish HTTP assignment or movement authorization and are not evidence for Sprint 4-B/C/D.
 
 Each feature must link requirement → operation/entity → named test → execution result. Store command, environment, date, counts and failure details; never label a planned test passed. CI adds lint/type checks, unit/integration/contract tests and frontend/mobile checks as applications exist. Migration verification includes fresh DB and upgrade from prior approved schema. API security matrix must grow with each endpoint.
 
