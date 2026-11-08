@@ -84,3 +84,12 @@
 - **Initial failures and fixes:** The first full regression identified stale 26-table/50-key assertions; updated them for the frozen Sprint 4 additions. A privilege check was corrected to assert column-level `released_at` UPDATE rather than broad table UPDATE. A fresh second isolated database verified the corrected migration.
 - **Current phase boundary:** Sprint 4-A database work is complete and ready for its local checkpoint commit. Sprint 4-B APIs, authorization behavior and generic HTTP conflict normalization have not yet been implemented. No incident assignment API, movement API, dispatch, movement verification, or vehicle administration guard is claimed.
 - **Open gates:** M01-R01, Q-05, Q-06, Q-08, production KMS/key lifecycle, production logging and Auditor reason retrieval remain OPEN/deferred. No push, merge, deployment or real operational use.
+
+## Run 2026-11-08 — Sprint 4-B assignment API
+
+- **Baseline:** `feat/sprint-4-assignment-movement` at accepted S4-A `c4e2aec0f4eb7aa6190bd0449ff68c1c6d9ae662`; no migration or scope change.
+- **Implementation:** Added NestJS `getAssignments` and `setAssignments` routes. Assignment writes enforce exact G-06 permission, active selected-tenant membership with `FIELD_RESPONDER` role, selected-tenant `AVAILABLE` vehicles, incident row lock and `base_version`. Changed replacements increment once; identical sets are no-ops. Explicit pre-dispatch releases preserve history; re-adds create new interval IDs. Audit and assignment mutation are transaction-atomic. Cross-tenant unique violations map to generic conflict without a cross-tenant lookup.
+- **Validation:** focused real HTTP suite PASS (1 file/6 tests); full integration PASS (6 files/42 tests); unit/contract PASS (2 files/19 tests); typecheck, lint, build, formatting, frozen scope inventory and whitespace checks PASS. Details: [Sprint 4-B validation](../testing/SPRINT-4B-ASSIGNMENT-VALIDATION.md).
+- **Scope:** exactly two existing operations; no new table, migration, permission, event schema, or API. No dispatch, movement, terminal release, or vehicle-state guard implemented in this checkpoint.
+- **Checkpoint:** local S4-B commit pending final documentation checks. Root attachments remain untracked and untouched. No push, merge or deployment.
+- **Open gates:** M01-R01, Q-05, Q-06, Q-08, production KMS/key lifecycle, production logging and Auditor reason retrieval remain OPEN/deferred.

@@ -29,6 +29,10 @@ const operatorUserId = randomUUID();
 const operatorMembershipId = randomUUID();
 const ordinaryUserId = randomUUID();
 const ordinaryMembershipId = randomUUID();
+const secondResponderUserId = randomUUID();
+const secondResponderMembershipId = randomUUID();
+const assignmentVehicleId = randomUUID();
+const conflictVehicleId = randomUUID();
 const platformUserId = randomUUID();
 const roleId = randomUUID();
 const roleIds = {
@@ -223,6 +227,22 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         [ordinaryMembershipId, organizationId, ordinaryUserId],
       );
       await setup.query(
+        `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+         values($1,$2,'synthetic-http-assignment-only',now(),'ACTIVE')`,
+        [secondResponderUserId, `${secondResponderUserId}@example.invalid`],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic HTTP Responder Two','ACTIVE',now())`,
+        [secondResponderMembershipId, organizationId, secondResponderUserId],
+      );
+      await setup.query(
+        `insert into app.vehicles(id,organization_id,call_sign,kind,service_state)
+         values($1,$2,'SYNTHETIC-ASSIGN-1','Rescue','AVAILABLE'),
+               ($3,$2,'SYNTHETIC-ASSIGN-2','Rescue','AVAILABLE')`,
+        [assignmentVehicleId, organizationId, conflictVehicleId],
+      );
+      await setup.query(
         `insert into app.membership_roles(organization_id,membership_id,role_id)
          values($1,$2,$3),($1,$4,$5),($1,$6,$7)`,
         [
@@ -234,6 +254,11 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
           ordinaryMembershipId,
           roleIds.FIELD_RESPONDER,
         ],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3)`,
+        [organizationId, secondResponderMembershipId, roleIds.FIELD_RESPONDER],
       );
       await setup.query("select set_config('app.organization_id',$1,true)", [
         secondOrganizationId,
@@ -274,22 +299,24 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
             "transitionIncident",
             "listLocations",
             "createLocation",
+            "getAssignments",
+            "setAssignments",
           ],
           "TENANT",
         ],
         [
           "ORGANIZATION_ADMIN",
-          ["listIncidents", "getIncident", "listLocations"],
+          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
           "TENANT",
         ],
         [
           "READ_ONLY_AUDITOR",
-          ["listIncidents", "getIncident", "listLocations"],
+          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
           "TENANT",
         ],
         [
           "FIELD_RESPONDER",
-          ["listIncidents", "getIncident", "listLocations"],
+          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
           "ASSIGNED",
         ],
       ];
@@ -315,6 +342,8 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
             "transitionIncident",
             "listLocations",
             "createLocation",
+            "getAssignments",
+            "setAssignments",
           ],
         ],
       );
@@ -750,13 +779,210 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     );
     expect(opened.status).toBe(200);
     const openIncident = (await opened.json()) as { version: number };
+
+    const assignmentPath = `${baseUrl}/incidents/${incident.id}/assignments`;
+    const assignmentBody = {
+      base_version: openIncident.version,
+      membership_ids: [ordinaryMembershipId],
+      vehicle_ids: [assignmentVehicleId],
+    };
+    const assigned = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(assignmentBody),
+    });
+    expect(assigned.status, await assigned.clone().text()).toBe(200);
+    const assignedBody = (await assigned.json()) as {
+      version: number;
+      personnel: Array<{ membership_id: string; released_at?: string }>;
+      vehicles: Array<{ vehicle_id: string; released_at?: string }>;
+    };
+    expect(assignedBody.version).toBe(openIncident.version + 1);
+    expect(assignedBody.personnel).toMatchObject([
+      { membership_id: ordinaryMembershipId },
+    ]);
+    expect(assignedBody.vehicles).toMatchObject([
+      { vehicle_id: assignmentVehicleId },
+    ]);
+    const assignmentsRead = await fetch(assignmentPath, { headers });
+    expect(assignmentsRead.status).toBe(200);
+    expect(await assignmentsRead.json()).toMatchObject({
+      incident_id: incident.id,
+      version: openIncident.version + 1,
+    });
+
+    const identical = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        ...assignmentBody,
+        base_version: assignedBody.version,
+      }),
+    });
+    expect(identical.status).toBe(200);
+    expect((await identical.json()).version).toBe(assignedBody.version);
+
+    const conflictIncidentResponse = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: "Synthetic uniqueness conflict",
+        category: "OTHER",
+        occurred_at: "2026-11-05T08:00:00Z",
+        source_kind: "TEST",
+      }),
+    });
+    expect(conflictIncidentResponse.status).toBe(201);
+    const conflictIncident = (await conflictIncidentResponse.json()) as {
+      id: string;
+      version: number;
+    };
+    const uniquenessConflict = await fetch(
+      `${baseUrl}/incidents/${conflictIncident.id}/assignments`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          base_version: conflictIncident.version,
+          membership_ids: [ordinaryMembershipId],
+          vehicle_ids: [conflictVehicleId],
+        }),
+      },
+    );
+    expect(uniquenessConflict.status).toBe(409);
+    const conflictText = await uniquenessConflict.text();
+    expect(conflictText).toContain('"code":"CONFLICT"');
+    expect(conflictText).not.toContain(ordinaryUserId);
+    expect(conflictText).not.toContain(incident.id);
+    expect(conflictText).not.toContain(assignmentVehicleId);
+
+    await selectRole("ORGANIZATION_ADMIN");
+    expect((await fetch(assignmentPath, { headers })).status).toBe(200);
+    const adminAssignmentWrite = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        ...assignmentBody,
+        base_version: assignedBody.version,
+      }),
+    });
+    expect(adminAssignmentWrite.status).toBe(403);
+    await selectRole("FIELD_RESPONDER");
+    expect((await fetch(assignmentPath, { headers })).status).toBe(404);
+    const responderAssignmentWrite = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        ...assignmentBody,
+        base_version: assignedBody.version,
+      }),
+    });
+    expect(responderAssignmentWrite.status).toBe(403);
+    await selectRole("INCIDENT_COMMANDER");
+
+    const released = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        base_version: assignedBody.version,
+        membership_ids: [],
+        vehicle_ids: [],
+      }),
+    });
+    expect(released.status).toBe(200);
+    const releasedBody = (await released.json()) as {
+      version: number;
+      personnel: Array<{ released_at?: string }>;
+      vehicles: Array<{ released_at?: string }>;
+    };
+    expect(releasedBody.version).toBe(assignedBody.version + 1);
+    expect(releasedBody.personnel[0]?.released_at).toBeTruthy();
+    expect(releasedBody.vehicles[0]?.released_at).toBeTruthy();
+    const readded = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        ...assignmentBody,
+        base_version: releasedBody.version,
+      }),
+    });
+    expect(readded.status).toBe(200);
+    const readdedBody = (await readded.json()) as {
+      version: number;
+      personnel: Array<{ id: string; released_at?: string }>;
+      vehicles: Array<{ id: string; released_at?: string }>;
+    };
+    expect(readdedBody.version).toBe(releasedBody.version + 1);
+    expect(readdedBody.personnel).toHaveLength(2);
+    expect(readdedBody.vehicles).toHaveLength(2);
+    expect(readdedBody.personnel[0]?.id).not.toBe(readdedBody.personnel[1]?.id);
+    expect(readdedBody.vehicles[0]?.id).not.toBe(readdedBody.vehicles[1]?.id);
+    let assignmentVersion = readdedBody.version;
+    const concurrentCommands = await Promise.all([
+      fetch(assignmentPath, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          base_version: assignmentVersion,
+          membership_ids: [],
+          vehicle_ids: [assignmentVehicleId],
+        }),
+      }),
+      fetch(assignmentPath, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          base_version: assignmentVersion,
+          membership_ids: [secondResponderMembershipId],
+          vehicle_ids: [],
+        }),
+      }),
+    ]);
+    const concurrentResults = await Promise.all(
+      concurrentCommands.map(async (response) => ({
+        status: response.status,
+        body: await response.json(),
+      })),
+    );
+    expect(concurrentResults.map(({ status }) => status).sort()).toEqual([
+      200, 409,
+    ]);
+    expect(
+      concurrentResults.find(({ status }) => status === 409)?.body,
+    ).toMatchObject({ code: "STALE_VERSION" });
+    assignmentVersion += 1;
+
+    await selectRole("CONTROL_ROOM_OPERATOR");
+    const operatorRead = await fetch(assignmentPath, { headers });
+    expect(operatorRead.status).toBe(200);
+    const operatorAssignments = (await operatorRead.json()) as {
+      version: number;
+      personnel: Array<{ membership_id: string; released_at?: string }>;
+      vehicles: Array<{ vehicle_id: string; released_at?: string }>;
+    };
+    const operatorNoop = await fetch(assignmentPath, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        base_version: operatorAssignments.version,
+        membership_ids: operatorAssignments.personnel
+          .filter((assignment) => !assignment.released_at)
+          .map((assignment) => assignment.membership_id),
+        vehicle_ids: operatorAssignments.vehicles
+          .filter((assignment) => !assignment.released_at)
+          .map((assignment) => assignment.vehicle_id),
+      }),
+    });
+    expect(operatorNoop.status).toBe(200);
+    await selectRole("INCIDENT_COMMANDER");
+
     const missingAccuracy = await fetch(
       `${baseUrl}/incidents/${incident.id}/locations`,
       {
         method: "POST",
         headers,
         body: JSON.stringify({
-          base_version: openIncident.version,
+          base_version: assignmentVersion,
           label: "Synthetic invalid point",
           point: { longitude: 101.68, latitude: 3.14 },
         }),
@@ -769,7 +995,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          base_version: openIncident.version,
+          base_version: assignmentVersion,
           label: "Synthetic HTTP location",
           point: {
             longitude: 101.68,
@@ -807,7 +1033,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          base_version: openIncident.version + 1,
+          base_version: assignmentVersion + 1,
           target: "CANCELLED",
           reason: "Synthetic operator denial probe",
         }),
@@ -823,7 +1049,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          base_version: openIncident.version + 1,
+          base_version: assignmentVersion + 1,
           target: "CANCELLED",
           reason: cancellationReason,
         }),
