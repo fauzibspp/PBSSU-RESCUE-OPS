@@ -6,9 +6,21 @@ import { OrganizationController } from "./organizations/organization.controller.
 import { OrganizationService } from "./organizations/organization.service.js";
 import { VehicleController } from "./vehicles/vehicle.controller.js";
 import { VehicleService } from "./vehicles/vehicle.service.js";
+import { IncidentController } from "./incidents/incident.controller.js";
+import { IncidentService } from "./incidents/incident.service.js";
 
 @Module({
-  controllers: [IdentityController, OrganizationController, VehicleController],
-  providers: [IdentityService, OrganizationService, VehicleService],
+  controllers: [
+    IdentityController,
+    OrganizationController,
+    VehicleController,
+    IncidentController,
+  ],
+  providers: [
+    IdentityService,
+    OrganizationService,
+    VehicleService,
+    IncidentService,
+  ],
 })
 export class AppModule {}

@@ -4,6 +4,10 @@ import type { Database } from "./connection.js";
 import * as foundation from "./migrations/001-foundation.js";
 import * as permissions from "./migrations/002-permission-catalog.js";
 import * as vehicles from "./migrations/003-vehicles.js";
+import * as incidents from "./migrations/004-incidents.js";
+import * as incidentPermissions from "./migrations/005-incident-permissions.js";
+import * as protectedCancellationAudit from "./migrations/006-protected-cancellation-audit.js";
+import * as locationPermissions from "./migrations/007-location-permissions.js";
 
 export async function migrate(
   database: Database,
@@ -30,6 +34,10 @@ export async function migrate(
         "001-foundation": foundation,
         "002-permission-catalog": permissions,
         "003-vehicles": vehicles,
+        "004-incidents": incidents,
+        "005-incident-permissions": incidentPermissions,
+        "006-protected-cancellation-audit": protectedCancellationAudit,
+        "007-location-permissions": locationPermissions,
       }),
     },
   });

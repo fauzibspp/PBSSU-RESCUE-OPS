@@ -798,6 +798,147 @@ describe("M01 privileged MFA lifecycle", () => {
       { role_code: "ORGANIZATION_ADMIN", permission_code: "listVehicles" },
       { role_code: "ORGANIZATION_ADMIN", permission_code: "updateVehicle" },
     ]);
+    const incidentTemplateGrants = await owner.query<{
+      role_code: string;
+      permission_code: string;
+      resource_scope: string;
+    }>(
+      `select r.code role_code,p.code permission_code,rp.resource_scope
+       from app.roles r join app.role_permissions rp
+         on rp.organization_id=r.organization_id and rp.role_id=r.id
+       join app.permissions p on p.id=rp.permission_id
+       where r.organization_id=$1 and p.code=any($2::text[])
+       order by r.code,p.code`,
+      [
+        firstAdminOrganizationId,
+        [
+          "listIncidents",
+          "getIncident",
+          "createIncident",
+          "updateIncident",
+          "transitionIncident",
+          "listLocations",
+          "createLocation",
+        ],
+      ],
+    );
+    expect(incidentTemplateGrants.rows).toEqual([
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "getIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "transitionIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "updateIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "getIncident",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listIncidents",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listLocations",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "createIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "getIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "transitionIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "updateIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "getIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "getIncident",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
     await owner.query("select set_config('app.organization_id',$1,false)", [
       organizationId,
     ]);

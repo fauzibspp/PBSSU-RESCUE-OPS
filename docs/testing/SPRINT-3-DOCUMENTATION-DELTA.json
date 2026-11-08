@@ -1,0 +1,17 @@
+{
+  "purpose": "Tracks documentation files updated by the approved Sprint 3 contract-freeze commit while preserving the original M00 foundation hash manifest.",
+  "approved_commit": "50233f511813d45837d237e260a0fb9d8a61d609",
+  "decision_date": "2026-11-07",
+  "files": {
+    "docs/architecture/DATA-DICTIONARY.md": "66e500df49107bfce773256a4a78f4a845f17b2bbb3f84cffbe1aaf129091b76",
+    "docs/architecture/DATABASE-SCHEMA.md": "84f68e26f2310148df84d904aa03793021a6798838d342848251b1f77a7b1f2e",
+    "docs/architecture/SYSTEM-ARCHITECTURE.md": "5b05b5bbce552230f538b22aadfe668a55c9ef3fafe5fb8899c95783eea4f4ae",
+    "docs/architecture/decisions/ADR-004-INCIDENT-MONITORING.md": "00f05d6ba5ceb0e989a6b156a2dd95cebcaca085f37181454588932f4b881278",
+    "docs/planning/DECISION-REGISTER.md": "42c156e8cd72893baadae425dbff1e696f1a942dc749f523c39cfd72bf2382b0",
+    "docs/planning/IMPLEMENTATION-PLAN.md": "ed3e5849f80b36d6237bc254292d7825e1f04b413928ee49cfacf64ecd922059",
+    "docs/requirements/SRS.md": "57aaddd493becaf026011520b0150e6d24c396ea13c8567f9ed597b744897e9c",
+    "docs/requirements/TRACEABILITY.md": "9f561d82f0524b546cbda382dea6a9343b2f218bf0fd6197716ba4b006178ef1",
+    "docs/security/AUTHORIZATION-MODEL.md": "9d9df0baa3841a0f209f3ce6a7bcf4aaf6991aba50ad5b8c54dbaefe1fb09c36",
+    "docs/testing/TEST-STRATEGY.md": "cc05a9fdcd99cd26c211d343865f797be7e648758f2666b335527fb6d4408157"
+  }
+}

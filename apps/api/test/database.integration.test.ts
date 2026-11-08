@@ -8,6 +8,8 @@ import {
   tenantTransaction,
   type Database,
 } from "../src/database/connection.js";
+import * as incidentPermissions from "../src/database/migrations/005-incident-permissions.js";
+import * as locationPermissions from "../src/database/migrations/007-location-permissions.js";
 
 interface DevelopmentDatabaseState {
   ownerUrl: string;
@@ -52,6 +54,12 @@ const roleA = randomUUID();
 const roleB = randomUUID();
 const membershipA = randomUUID();
 const membershipB = randomUUID();
+const incidentA = randomUUID();
+const incidentB = randomUUID();
+const locationA = randomUUID();
+const locationB = randomUUID();
+const eventA = randomUUID();
+const eventB = randomUUID();
 
 async function createTenant(
   database: Database,
@@ -102,6 +110,30 @@ describe("M01 PostgreSQL foundation", () => {
     await ownerPool.end();
     await createTenant(owner, tenantA, userA, roleA, membershipA, "alpha");
     await createTenant(owner, tenantB, userB, roleB, membershipB, "bravo");
+    for (const [organizationId, userId, incidentId, locationId, eventId] of [
+      [tenantA, userA, incidentA, locationA, eventA],
+      [tenantB, userB, incidentB, locationB, eventB],
+    ] satisfies [string, string, string, string, string][]) {
+      await tenantTransaction(owner, organizationId, userId, async (trx) => {
+        await sql`
+          insert into app.incidents
+            (id,organization_id,title,category,occurred_at,source_kind)
+          values (${incidentId},${organizationId},'Synthetic incident','FIRE',now(),'TEST')
+        `.execute(trx);
+        await sql`
+          insert into app.incident_locations
+            (id,organization_id,incident_id,label)
+          values (${locationId},${organizationId},${incidentId},'Synthetic location')
+        `.execute(trx);
+        await sql`
+          insert into app.change_events
+            (id,organization_id,incident_id,location_id,entity_type,entity_id,
+             event_kind,entity_version,visibility_scope)
+          values (${eventId},${organizationId},${incidentId},${locationId},
+                  'INCIDENT_LOCATION',${locationId},'LOCATION_CREATED',1,'{}'::jsonb)
+        `.execute(trx);
+      });
+    }
   });
 
   afterAll(async () => {
@@ -115,7 +147,23 @@ describe("M01 PostgreSQL foundation", () => {
         userId,
         async (transaction) => {
           await sql`
+            delete from app.change_events
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
+            delete from app.incident_locations
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
+            delete from app.incidents
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
             delete from app.vehicles
+            where organization_id = ${organizationId}::uuid
+          `.execute(transaction);
+          await sql`
+            delete from app.role_permissions
             where organization_id = ${organizationId}::uuid
           `.execute(transaction);
           await sql`
@@ -141,7 +189,7 @@ describe("M01 PostgreSQL foundation", () => {
     await runtime.destroy();
   });
 
-  it("creates the M01 and Sprint 2 tables and forces RLS on tenant tables", async () => {
+  it("creates the 26-table migration chain and forces RLS on tenant tables", async () => {
     const counts = await owner.executeQuery(
       sql<{ count: string }>`
         select count(*)::text as count
@@ -149,7 +197,7 @@ describe("M01 PostgreSQL foundation", () => {
         where table_schema = 'app' and table_type = 'BASE TABLE'
       `.compile(owner),
     );
-    expect(counts.rows[0]?.count).toBe("23");
+    expect(counts.rows[0]?.count).toBe("26");
 
     const policies = await owner.executeQuery(
       sql<{
@@ -166,14 +214,47 @@ describe("M01 PostgreSQL foundation", () => {
           and relation.relname in (
             'organizations', 'memberships', 'roles', 'role_permissions',
             'membership_roles', 'audit_logs', 'organization_settings',
-            'organization_invitations', 'invitation_roles', 'vehicles'
+            'organization_invitations', 'invitation_roles', 'vehicles',
+            'incidents', 'incident_locations', 'change_events'
           )
       `.compile(owner),
     );
-    expect(policies.rows).toHaveLength(10);
+    expect(policies.rows).toHaveLength(13);
     expect(
       policies.rows.every((row) => row.row_security && row.force_row_security),
     ).toBe(true);
+    const migrations = await owner.executeQuery(
+      sql<{ names: string[] }>`
+        select array_agg(name order by name) as names
+        from migration_meta.kysely_migration
+      `.compile(owner),
+    );
+    expect(migrations.rows[0]?.names).toEqual([
+      "001-foundation",
+      "002-permission-catalog",
+      "003-vehicles",
+      "004-incidents",
+      "005-incident-permissions",
+      "006-protected-cancellation-audit",
+      "007-location-permissions",
+    ]);
+    expect(new Set(policies.rows.map((row) => row.table_name))).toEqual(
+      new Set([
+        "organizations",
+        "memberships",
+        "roles",
+        "role_permissions",
+        "membership_roles",
+        "audit_logs",
+        "organization_settings",
+        "organization_invitations",
+        "invitation_roles",
+        "vehicles",
+        "incidents",
+        "incident_locations",
+        "change_events",
+      ]),
+    );
   });
 
   it("migrates the exact approved permission keys without wildcard grants", async () => {
@@ -184,6 +265,13 @@ describe("M01 PostgreSQL foundation", () => {
     const expectedCodes = new Set([
       ...approvedScope.operations,
       ...sprint2Scope.operations,
+      "listIncidents",
+      "createIncident",
+      "getIncident",
+      "updateIncident",
+      "transitionIncident",
+      "listLocations",
+      "createLocation",
     ]);
     expect(codes.size).toBe(expectedCodes.size);
     expect([...expectedCodes].every((code) => codes.has(code))).toBe(true);
@@ -196,6 +284,182 @@ describe("M01 PostgreSQL foundation", () => {
     expect([...codes].some((code) => code === "*" || code.endsWith(".*"))).toBe(
       false,
     );
+  });
+
+  it("backfills only the approved incident role grants and scopes", async () => {
+    for (const [organizationId, userId, roleId, code] of [
+      [tenantA, userA, roleA, "INCIDENT_COMMANDER"],
+      [tenantB, userB, roleB, "CONTROL_ROOM_OPERATOR"],
+    ] as const) {
+      await tenantTransaction(owner, organizationId, userId, (tx) =>
+        sql`update app.roles set code=${code} where organization_id=${organizationId} and id=${roleId}`.execute(
+          tx,
+        ),
+      );
+    }
+    const responder = randomUUID(),
+      auditor = randomUUID(),
+      admin = randomUUID();
+    await tenantTransaction(owner, tenantA, userA, async (tx) => {
+      for (const [roleId, code] of [
+        [responder, "FIELD_RESPONDER"],
+        [auditor, "READ_ONLY_AUDITOR"],
+        [admin, "ORGANIZATION_ADMIN"],
+      ] as const) {
+        await sql`insert into app.roles(id,organization_id,code,name) values(${roleId},${tenantA},${code},${code})`.execute(
+          tx,
+        );
+      }
+    });
+    await owner.transaction().execute((tx) => incidentPermissions.up(tx));
+    await owner.transaction().execute((tx) => locationPermissions.up(tx));
+    const alpha = await tenantTransaction(owner, tenantA, userA, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantA}
+          and p.code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    const bravo = await tenantTransaction(owner, tenantB, userB, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantB}
+          and p.code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    const rows = [...alpha.rows, ...bravo.rows];
+    expect(rows).toHaveLength(16);
+    expect(
+      rows
+        .filter((row) => row.role_code === "FIELD_RESPONDER")
+        .every(
+          (row) =>
+            row.resource_scope === "ASSIGNED" &&
+            ["listIncidents", "getIncident"].includes(row.permission_code),
+        ),
+    ).toBe(true);
+    expect(
+      rows
+        .filter((row) => row.role_code === "ORGANIZATION_ADMIN")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual(["getIncident", "listIncidents"]);
+    expect(
+      rows
+        .filter((row) => row.role_code === "READ_ONLY_AUDITOR")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual(["getIncident", "listIncidents"]);
+    expect(rows.some((row) => row.role_code === "PLATFORM_SUPER_ADMIN")).toBe(
+      false,
+    );
+    const locationRows = await tenantTransaction(owner, tenantA, userA, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantA} and p.code in ('listLocations','createLocation')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    expect(locationRows.rows).toEqual([
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listLocations",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
+    const operatorLocationRows = await tenantTransaction(
+      owner,
+      tenantB,
+      userB,
+      (tx) =>
+        sql<{
+          role_code: string;
+          permission_code: string;
+          resource_scope: string;
+        }>`
+          select r.code role_code,p.code permission_code,rp.resource_scope
+          from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+          join app.permissions p on p.id=rp.permission_id
+          where rp.organization_id=${tenantB} and p.code in ('listLocations','createLocation')
+          order by r.code,p.code
+        `.execute(tx),
+    );
+    expect(operatorLocationRows.rows).toEqual([
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
+    expect(
+      rows
+        .filter((row) => row.role_code === "CONTROL_ROOM_OPERATOR")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual([
+      "createIncident",
+      "getIncident",
+      "listIncidents",
+      "transitionIncident",
+      "updateIncident",
+    ]);
+    expect(
+      rows
+        .filter((row) => row.role_code === "INCIDENT_COMMANDER")
+        .map((row) => row.permission_code)
+        .sort(),
+    ).toEqual([
+      "createIncident",
+      "getIncident",
+      "listIncidents",
+      "transitionIncident",
+      "updateIncident",
+    ]);
   });
 
   it("restricts runtime privileges and hides tenant rows without context", async () => {
@@ -220,6 +484,240 @@ describe("M01 PostgreSQL foundation", () => {
       "select count(*)::text as count from app.memberships",
     );
     expect(absentContext.rows[0].count).toBe("0");
+    const newTablePrivileges = await runtime.executeQuery(
+      sql<{
+        incidents_select: boolean;
+        incidents_insert: boolean;
+        incidents_delete: boolean;
+        locations_select: boolean;
+        locations_insert: boolean;
+        locations_update: boolean;
+        locations_delete: boolean;
+        events_select: boolean;
+        events_update: boolean;
+        events_insert: boolean;
+        events_delete: boolean;
+      }>`
+        select
+          has_table_privilege(current_user,'app.incidents','select') as incidents_select,
+          has_table_privilege(current_user,'app.incidents','insert') as incidents_insert,
+          has_table_privilege(current_user,'app.incidents','delete') as incidents_delete,
+          has_table_privilege(current_user,'app.incident_locations','select') as locations_select,
+          has_table_privilege(current_user,'app.incident_locations','insert') as locations_insert,
+          has_table_privilege(current_user,'app.incident_locations','update') as locations_update,
+          has_table_privilege(current_user,'app.incident_locations','delete') as locations_delete,
+          has_table_privilege(current_user,'app.change_events','select') as events_select,
+          has_table_privilege(current_user,'app.change_events','insert') as events_insert,
+          has_table_privilege(current_user,'app.change_events','update') as events_update,
+          has_table_privilege(current_user,'app.change_events','delete') as events_delete
+      `.compile(runtime),
+    );
+    expect(newTablePrivileges.rows[0]).toEqual({
+      incidents_select: true,
+      incidents_insert: true,
+      incidents_delete: false,
+      locations_select: true,
+      locations_insert: true,
+      locations_update: false,
+      locations_delete: false,
+      events_select: true,
+      events_insert: true,
+      events_update: false,
+      events_delete: false,
+    });
+    const absentNewRows = await runtime.executeQuery(
+      sql<{ incidents: string; locations: string; events: string }>`
+        select (select count(*)::text from app.incidents) as incidents,
+               (select count(*)::text from app.incident_locations) as locations,
+               (select count(*)::text from app.change_events) as events
+      `.compile(runtime),
+    );
+    expect(absentNewRows.rows[0]).toEqual({
+      incidents: "0",
+      locations: "0",
+      events: "0",
+    });
+  });
+
+  it("isolates incidents, locations, and events across tenant transactions", async () => {
+    const alpha = await tenantTransaction(
+      runtime,
+      tenantA,
+      userA,
+      async (trx) =>
+        sql<{ incidents: string[]; locations: string[]; events: string[] }>`
+          select
+            (select array_agg(id::text) from app.incidents) as incidents,
+            (select array_agg(id::text) from app.incident_locations) as locations,
+            (select array_agg(id::text) from app.change_events) as events
+        `.execute(trx),
+    );
+    expect(alpha.rows[0]).toEqual({
+      incidents: [incidentA],
+      locations: [locationA],
+      events: [eventA],
+    });
+    const bravo = await tenantTransaction(
+      runtime,
+      tenantB,
+      userB,
+      async (trx) =>
+        sql<{ incidents: string[]; locations: string[]; events: string[] }>`
+          select
+            (select array_agg(id::text) from app.incidents) as incidents,
+            (select array_agg(id::text) from app.incident_locations) as locations,
+            (select array_agg(id::text) from app.change_events) as events
+        `.execute(trx),
+    );
+    expect(bravo.rows[0]).toEqual({
+      incidents: [incidentB],
+      locations: [locationB],
+      events: [eventB],
+    });
+
+    const hiddenUpdate = await tenantTransaction(
+      runtime,
+      tenantA,
+      userA,
+      async (trx) =>
+        sql<{ id: string }>`
+          update app.incidents set title='Synthetic unauthorized update'
+          where id=${incidentB} returning id
+        `.execute(trx),
+    );
+    expect(hiddenUpdate.rows).toHaveLength(0);
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incidents
+            (organization_id,title,category,occurred_at,source_kind)
+          values (${tenantB},'Synthetic cross-tenant','FIRE',now(),'TEST')
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incident_locations (organization_id,incident_id,label)
+          values (${tenantA},${incidentB},'Cross-tenant parent')
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`
+          insert into app.change_events
+            (organization_id,incident_id,entity_type,entity_id,event_kind,
+             entity_version,visibility_scope)
+          values (${tenantA},${incidentB},'INCIDENT',${incidentB},'CREATED',1,'{}'::jsonb)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`
+          insert into app.change_events
+            (organization_id,incident_id,location_id,entity_type,entity_id,
+             event_kind,entity_version,visibility_scope)
+          values (${tenantA},${incidentA},${locationB},'INCIDENT_LOCATION',
+                  ${locationB},'LOCATION_CREATED',1,'{}'::jsonb)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+  });
+
+  it("keeps change events append-only for the restricted runtime role", async () => {
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`update app.change_events set tombstone=true where id=${eventA}`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      tenantTransaction(runtime, tenantA, userA, (trx) =>
+        sql`delete from app.change_events where id=${eventA}`.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("enforces incident state, version, and completed-outcome constraints", async () => {
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incidents
+            (organization_id,title,category,status,occurred_at,source_kind)
+          values (${tenantA},'Invalid state','FIRE','DISPATCHING',now(),'TEST')
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incidents
+            (organization_id,title,category,occurred_at,source_kind,version)
+          values (${tenantA},'Invalid version','FIRE',now(),'TEST',0)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incidents
+            (organization_id,title,category,status,occurred_at,source_kind)
+          values (${tenantA},'Missing outcome','FIRE','COMPLETED',now(),'TEST')
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.change_events
+            (organization_id,incident_id,entity_type,entity_id,event_kind,
+             entity_version,visibility_scope)
+          values (${tenantA},${incidentA},'INCIDENT',${incidentA},'CREATED',0,'{}'::jsonb)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.change_events
+            (organization_id,incident_id,entity_type,entity_id,event_kind,
+             entity_version,tombstone,visibility_scope)
+          values (${tenantA},${incidentA},'INCIDENT',${incidentA},'CREATED',1,true,'{}'::jsonb)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    await expect(
+      tenantTransaction(owner, tenantA, userA, (trx) =>
+        sql`
+          insert into app.incident_locations
+            (organization_id,incident_id,label,accuracy_m)
+          values (${tenantA},${incidentA},'Unpaired accuracy',1)
+        `.execute(trx),
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("rolls back incident writes when the surrounding transaction fails", async () => {
+    const rolledBackIncident = randomUUID();
+    await expect(
+      tenantTransaction(owner, tenantA, userA, async (trx) => {
+        await sql`
+          insert into app.incidents
+            (id,organization_id,title,category,occurred_at,source_kind)
+          values (${rolledBackIncident},${tenantA},'Rollback probe','FIRE',now(),'TEST')
+        `.execute(trx);
+        throw new Error("synthetic incident transaction rollback");
+      }),
+    ).rejects.toThrow("synthetic incident transaction rollback");
+    const absent = await tenantTransaction(owner, tenantA, userA, (trx) =>
+      sql`select id from app.incidents where id=${rolledBackIncident}`.execute(
+        trx,
+      ),
+    );
+    expect(absent.rows).toHaveLength(0);
   });
 
   it("isolates tenant reads and rejects cross-tenant writes and composite references", async () => {

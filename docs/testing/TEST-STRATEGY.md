@@ -21,6 +21,7 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-007 | Q-02 lifecycle edge matrix; Sprint 3 accepts DRAFT→OPEN and Commander cancellation only from DRAFT/OPEN with reason; reject unsupported and Sprint 4-dependent edges; enforce role grants, base_version, `STALE_VERSION`/`INVALID_TRANSITION`/`PREREQUISITE_UNAVAILABLE`, atomic single version increment, event+audit commit, and no mutation on conflict. |
 | T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
 | T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
+| T-009a | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged. |
 | T-010 | Manual assignments only, active resource validation, no external dispatch. |
 | T-011 | Append-only movement corrections, assigned-vehicle check, occurred vs received time. |
 | T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |
@@ -39,6 +40,8 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-025 | Traverse every identity success/error/page/header projection; no generic secret/hash/seed/URI/code-list/token/redirect echoes or logging/audit payloads; only the isolated C-02 handoff may release material, unavailable adapter denies. |
 | T-022 | Successful mutation audit atomicity; denied-action trail; sensitive reads/exports; append-only audit/event records and correction-by-new-event; cancellation reason access only by approved projection; no reason in generic logs/public telemetry/unauthorized notifications/errors; auditor full reason only after a separately approved authorized audit view exists. |
 
+Sprint 3-B execution adds restricted-role PostgreSQL coverage for exact incident permission catalog keys/scopes/grants, onboarding template mapping, incident CRUD commands, optimistic concurrency races, staged lifecycle guard codes, cross-tenant denial, ciphertext-only cancellation metadata, rejection of arbitrary metadata, immutable audit writes, and rollback when encryption key loading fails. Generic list/get do not decrypt cancellation metadata; the authorized reason retrieval projection remains deferred. These are implementation checks, not proof of production key management or deployment recovery.
+
 ## Non-functional/security suites
 
 | ID | Gate |
@@ -55,6 +58,8 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-N10 | Correlation/metrics/audit redaction and actionable failure alerts with no cross-tenant labels exposing content; prove cancellation reason never enters generic logs, public telemetry or unauthorized notifications. |
 
 ## Release gates and evidence
+
+Sprint 3-C location tests cover list/create permissions and scopes, responder/platform fail-closed behavior, same-tenant parent lookup, coordinate and field validation, deterministic cursor ordering, immutable location version 1, parent incident compare-and-swap, stale and concurrent create conflicts, cross-tenant concealment, terminal incident guards, event/audit atomicity and rollback on injected event/audit failures. Run these with PostgreSQL under the restricted runtime role; mocks alone do not establish RLS or transaction behavior.
 
 Each feature must link requirement → operation/entity → named test → execution result. Store command, environment, date, counts and failure details; never label a planned test passed. CI adds lint/type checks, unit/integration/contract tests and frontend/mobile checks as applications exist. Migration verification includes fresh DB and upgrade from prior approved schema. API security matrix must grow with each endpoint.
 

@@ -287,6 +287,8 @@ export class IdentityService implements OnModuleDestroy {
       "listPermissions",
       "getSettings",
       "updateSettings",
+      "listIncidents",
+      "getIncident",
       "listVehicles",
       "createVehicle",
       "updateVehicle",
@@ -361,6 +363,91 @@ export class IdentityService implements OnModuleDestroy {
         await connection.query(
           "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
           [orgId, roleId, vehicleReadGrant.id],
+        );
+      }
+      const incidentGrants = await connection.query<{
+        id: string;
+        code: string;
+        valid_scopes: string[];
+      }>(
+        "select id,code,valid_scopes from app.permissions where code=any($1::text[]) and domain='TENANT'",
+        [
+          [
+            "listIncidents",
+            "getIncident",
+            "createIncident",
+            "updateIncident",
+            "transitionIncident",
+          ],
+        ],
+      );
+      if (incidentGrants.rows.length !== 5)
+        throw new Error("Incident permission catalogue incomplete");
+      for (const roleCode of ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"]) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved operational role missing");
+        for (const grant of incidentGrants.rows) {
+          if (!grant.valid_scopes.includes("TENANT"))
+            throw new Error("Invalid incident permission scope");
+          await connection.query(
+            "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
+            [orgId, roleId, grant.id],
+          );
+        }
+      }
+      for (const [roleCode, scope] of [
+        ["FIELD_RESPONDER", "ASSIGNED"],
+        ["READ_ONLY_AUDITOR", "TENANT"],
+      ] as const) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved read role missing");
+        for (const code of ["listIncidents", "getIncident"]) {
+          const grant = incidentGrants.rows.find((item) => item.code === code);
+          if (!grant?.valid_scopes.includes(scope))
+            throw new Error("Invalid incident read scope");
+          await connection.query(
+            "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,$4)",
+            [orgId, roleId, grant.id, scope],
+          );
+        }
+      }
+      const locationGrants = await connection.query<{
+        id: string;
+        code: string;
+        valid_scopes: string[];
+      }>(
+        "select id,code,valid_scopes from app.permissions where code=any($1::text[]) and domain='TENANT'",
+        [["listLocations", "createLocation"]],
+      );
+      if (locationGrants.rows.length !== 2)
+        throw new Error("Location permission catalogue incomplete");
+      for (const roleCode of ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"]) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved location role missing");
+        for (const grant of locationGrants.rows) {
+          if (!grant.valid_scopes.includes("TENANT"))
+            throw new Error("Invalid location permission scope");
+          await connection.query(
+            "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
+            [orgId, roleId, grant.id],
+          );
+        }
+      }
+      const locationRead = locationGrants.rows.find(
+        (grant) => grant.code === "listLocations",
+      );
+      if (!locationRead?.valid_scopes.includes("ASSIGNED"))
+        throw new Error("Responder location read scope missing");
+      for (const [roleCode, scope] of [
+        ["ORGANIZATION_ADMIN", "TENANT"],
+        ["FIELD_RESPONDER", "ASSIGNED"],
+        ["READ_ONLY_AUDITOR", "TENANT"],
+      ] as const) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved location read role missing");
+        await connection.query(
+          "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,$4)",
+          [orgId, roleId, locationRead.id, scope],
         );
       }
       const settingsId = randomUUID();

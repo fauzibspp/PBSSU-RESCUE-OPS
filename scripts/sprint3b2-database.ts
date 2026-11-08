@@ -1,0 +1,164 @@
+import { randomBytes } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { Pool, escapeLiteral } from "pg";
+import { setTimeout as pause } from "node:timers/promises";
+
+const cache = new URL("../.cache/sprint3b2/", import.meta.url);
+const stateFile = new URL("../.cache/sprint3b2/database.json", import.meta.url);
+const image =
+  "postgis/postgis:18-3.7@sha256:440bdd14e3edccfce04d080d8a1a0cbae5763fa16a1c4172bff83530828461de";
+const suffix = randomBytes(6).toString("hex");
+const scope = `sprint3b2-${suffix}`;
+const name = `pbssu-sprint3b2-${suffix}`;
+const network = `${name}-isolated`;
+const databaseName = `pbssu_m01_sprint3b2_${suffix}`;
+
+function docker(args: string[], env = process.env): string {
+  return execFileSync("docker", ["--context", "desktop-linux", ...args], {
+    encoding: "utf8",
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+async function main(): Promise<void> {
+  if (existsSync(stateFile))
+    throw new Error(
+      "Sprint 3-B clean retry state file already exists; refusing to reuse its resources",
+    );
+  const containers = docker([
+    "ps",
+    "-a",
+    "--filter",
+    `label=com.pbssu.scope=${scope}`,
+    "--format",
+    "{{.Names}}",
+  ]);
+  const networks = docker([
+    "network",
+    "ls",
+    "--filter",
+    `label=com.pbssu.scope=${scope}`,
+    "--format",
+    "{{.Name}}",
+  ]);
+  if (containers || networks)
+    throw new Error(
+      "Unique Sprint 3-B clean retry Docker namespace already exists; refusing reuse",
+    );
+
+  const bootstrap = randomBytes(32).toString("base64url");
+  const owner = randomBytes(32).toString("base64url");
+  const runtime = randomBytes(32).toString("base64url");
+  const identity = randomBytes(32).toString("base64url");
+
+  docker(["image", "inspect", image]);
+  docker(["network", "create", "--label", `com.pbssu.scope=${scope}`, network]);
+  const containerId = docker(
+    [
+      "run",
+      "--detach",
+      "--pull=never",
+      "--name",
+      name,
+      "--platform",
+      "linux/amd64",
+      "--label",
+      `com.pbssu.scope=${scope}`,
+      "--label",
+      `com.pbssu.instance=${suffix}`,
+      "--network",
+      network,
+      "--publish",
+      "127.0.0.1::5432",
+      "--tmpfs",
+      "/var/lib/postgresql:rw,nosuid,nodev,size=1073741824",
+      "--env",
+      "POSTGRES_USER=pbssu_m01_bootstrap",
+      "--env",
+      `POSTGRES_DB=${databaseName}`,
+      "--env",
+      "POSTGRES_PASSWORD",
+      image,
+    ],
+    { ...process.env, POSTGRES_PASSWORD: bootstrap },
+  );
+
+  const ports = JSON.parse(
+    docker([
+      "inspect",
+      "--format",
+      "{{json .NetworkSettings.Ports}}",
+      containerId,
+    ]),
+  ) as Record<string, { HostIp: string; HostPort: string }[]>;
+  const binding = ports["5432/tcp"]?.[0];
+  if (!binding || binding.HostIp !== "127.0.0.1")
+    throw new Error(
+      "Sprint 3-B clean retry test database is not loopback-only",
+    );
+
+  const url = (user: string, password: string) =>
+    `postgresql://${user}:${password}@127.0.0.1:${binding.HostPort}/${databaseName}`;
+  const pool = new Pool({
+    connectionString: url("pbssu_m01_bootstrap", bootstrap),
+    max: 1,
+    connectionTimeoutMillis: 2000,
+  });
+  try {
+    let ready = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      try {
+        await pool.query("select 1");
+        ready = true;
+        break;
+      } catch {
+        await pause(1000);
+      }
+    }
+    if (!ready)
+      throw new Error("Sprint 3-B clean retry database did not become ready");
+    for (const [role, password] of [
+      ["pbssu_m01_owner", owner],
+      ["pbssu_m01_runtime", runtime],
+      ["pbssu_m01_identity", identity],
+    ]) {
+      await pool.query(
+        `create role ${role} login nosuperuser nocreatedb nocreaterole noinherit nobypassrls password ${escapeLiteral(password)}`,
+      );
+    }
+    await pool.query(`alter database ${databaseName} owner to pbssu_m01_owner`);
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(
+      stateFile,
+      JSON.stringify({
+        scope: "sprint3b2",
+        instance: suffix,
+        dockerScope: scope,
+        container: containerId,
+        name,
+        network,
+        databaseName,
+        image,
+        ownerUrl: url("pbssu_m01_owner", owner),
+        runtimeUrl: url("pbssu_m01_runtime", runtime),
+        identityUrl: url("pbssu_m01_identity", identity),
+        storage: "tmpfs",
+      }),
+      { mode: 0o600, flag: "wx" },
+    );
+    process.stdout.write(
+      `Created isolated Sprint 3-B clean retry database ${databaseName}; credentials withheld.\n`,
+    );
+  } finally {
+    await pool.end();
+  }
+}
+
+main().catch(() => {
+  process.stderr.write(
+    "Sprint 3-B clean retry database setup failed; inspect only the generated Sprint 3-B clean retry namespace before retrying.\n",
+  );
+  process.exitCode = 1;
+});

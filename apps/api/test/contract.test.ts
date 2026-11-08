@@ -42,6 +42,45 @@ const freeze = JSON.parse(
 const contractDelta = JSON.parse(
   readFileSync(new URL("docs/testing/M01-CONTRACT-DELTA.json", root), "utf8"),
 ) as { files: Record<string, string> };
+const sprint3ContractDelta = JSON.parse(
+  readFileSync(
+    new URL("docs/testing/SPRINT-3-CONTRACT-DELTA.json", root),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint3DocumentationDelta = JSON.parse(
+  readFileSync(
+    new URL("docs/testing/SPRINT-3-DOCUMENTATION-DELTA.json", root),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint3BDocumentationDelta = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../docs/testing/SPRINT-3B-DOCUMENTATION-DELTA.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint3CDocumentationDelta = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../docs/testing/SPRINT-3C-DOCUMENTATION-DELTA.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint3DContractDelta = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../docs/testing/SPRINT-3D-CONTRACT-DELTA.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
 const controllerSources = [
   readFileSync(
     new URL("apps/api/src/identity/identity.controller.ts", root),
@@ -150,7 +189,32 @@ describe("approved M01 contract boundary", () => {
         "\n",
       );
       const actual = createHash("sha256").update(source).digest("hex");
-      if (path in contractDelta.files) {
+      if (path in sprint3DContractDelta.files) {
+        expect(
+          sprint3DContractDelta.files[path],
+          `${path} authorized Sprint 3-D contract clarification`,
+        ).toBe(actual);
+      } else if (path in sprint3ContractDelta.files) {
+        expect(
+          sprint3ContractDelta.files[path],
+          `${path} approved Sprint 3 contract freeze`,
+        ).toBe(actual);
+      } else if (path in sprint3CDocumentationDelta.files) {
+        expect(
+          sprint3CDocumentationDelta.files[path],
+          `${path} authorized Sprint 3-C documentation delta`,
+        ).toBe(actual);
+      } else if (path in sprint3BDocumentationDelta.files) {
+        expect(
+          sprint3BDocumentationDelta.files[path],
+          `${path} authorized Sprint 3-B documentation delta`,
+        ).toBe(actual);
+      } else if (path in sprint3DocumentationDelta.files) {
+        expect(
+          sprint3DocumentationDelta.files[path],
+          `${path} approved Sprint 3 documentation delta`,
+        ).toBe(actual);
+      } else if (path in contractDelta.files) {
         expect(contractDelta.files[path], `${path} approved M01 delta`).toBe(
           actual,
         );
@@ -194,6 +258,90 @@ describe("approved M01 contract boundary", () => {
         }),
       ).not.toThrow();
     }
+  });
+
+  it("pairs LocationInput point and accuracy without changing shared Point semantics", () => {
+    const validator = new Ajv2020({ strict: false, validateFormats: false });
+    validator.addSchema({
+      ...contract,
+      $id: "https://pbssu.invalid/openapi.json",
+    });
+    const locationInput = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/LocationInput",
+    });
+    const location = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/Location",
+    });
+    const observationInput = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/ObservationInput",
+    });
+    const base = { base_version: 1, label: "Synthetic point" };
+
+    expect(locationInput(base)).toBe(true);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 101.68, latitude: 3.14, accuracy_m: 8.5 },
+      }),
+    ).toBe(true);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 101.68, latitude: 3.14 },
+      }),
+    ).toBe(false);
+    expect(locationInput({ ...base, accuracy_m: 8.5 })).toBe(false);
+    expect(locationInput({ ...base, point: null })).toBe(false);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 101.68, latitude: 3.14, accuracy_m: null },
+      }),
+    ).toBe(false);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 181, latitude: 3.14, accuracy_m: 8.5 },
+      }),
+    ).toBe(false);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 101.68, latitude: -91, accuracy_m: 8.5 },
+      }),
+    ).toBe(false);
+    expect(
+      locationInput({
+        ...base,
+        point: { longitude: 101.68, latitude: 3.14, accuracy_m: -0.1 },
+      }),
+    ).toBe(false);
+
+    const responseBase = {
+      id: "11111111-1111-4111-8111-111111111111",
+      version: 1,
+      created_at: "2026-11-08T00:00:00Z",
+      organization_id: "22222222-2222-4222-8222-222222222222",
+      incident_id: "33333333-3333-4333-8333-333333333333",
+      label: "Synthetic point",
+    };
+    expect(location(responseBase)).toBe(true);
+    expect(
+      location({
+        ...responseBase,
+        point: { longitude: 101.68, latitude: 3.14, accuracy_m: 8.5 },
+      }),
+    ).toBe(true);
+    expect(
+      observationInput({
+        id: "44444444-4444-4444-8444-444444444444",
+        location_id: "55555555-5555-4555-8555-555555555555",
+        observation: "Synthetic observation",
+        risk: "LOW",
+        occurred_at: "2026-11-08T00:00:00Z",
+        point: { longitude: 101.68, latitude: 3.14 },
+      }),
+    ).toBe(true);
   });
 
   it("accepts closed handoff metadata and rejects generic credential injection", () => {
