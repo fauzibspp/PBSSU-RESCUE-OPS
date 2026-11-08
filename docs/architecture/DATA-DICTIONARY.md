@@ -22,7 +22,7 @@ Classification: I = internal configuration; O = restricted operational; P = pers
 | membership_roles | membership_id uuid; role_id uuid | I |
 | vehicles | call_sign text; registration_ciphertext? text; service_state AVAILABLE/MAINTENANCE/RETIRED; kind text | O/P |
 | incidents | title text; category FLOOD_MONITORING/FIRE/RESCUE/OTHER; status lifecycle enum; occurred_at instant; source_kind text; source_detail_ciphertext? text; outcome? text (nonempty on COMPLETED); closed_at? instant; version positive; lifecycle commands compare-and-swap base_version; bounded cancellation reason is protected audit metadata, not general incident storage | O/P |
-| incident_locations | incident_id uuid; label text; point? geography(Point,4326); accuracy_m? numeric >=0 paired with point; description? text; create request carries parent incident base_version and atomically increments incident.version | O |
+| incident_locations | incident_id uuid; label text; point? geography(Point,4326); accuracy_m? numeric >=0 paired with point. In `LocationInput`, point and accuracy are absent together or supplied together; a supplied point requires accuracy. Coordinates without a measured accuracy are not accepted. description? text; create request carries parent incident base_version and atomically increments incident.version | O |
 | incident_personnel | incident_id uuid; membership_id uuid; duty text; assigned_at instant; released_at? instant | O/P |
 | incident_vehicles | incident_id uuid; vehicle_id uuid; assigned_at instant; released_at? instant | O |
 | movement_logs | incident_id uuid; incident_vehicle_id uuid; location_id? uuid; kind DEPARTURE/ARRIVAL/RETURN/OTHER; occurred_at/received_at instant; actor_membership_id uuid; supersedes_id? uuid; note? text | O |

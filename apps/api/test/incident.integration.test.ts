@@ -429,6 +429,113 @@ describe("Sprint 3-B incident operations (restricted PostgreSQL role)", () => {
     expect(final.version).toBe(2);
   });
 
+  it("serializes transition/update, location/update, and location/cancellation races atomically", async () => {
+    const transitions = (await service.createIncident("commander", org, {
+      title: "Synthetic transition race",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const transitionRace = await Promise.allSettled([
+      service.transitionIncident("commander", org, transitions.id, {
+        base_version: transitions.version,
+        target: "OPEN",
+        reason: "Synthetic concurrent open",
+      }),
+      service.updateIncident("commander", org, transitions.id, {
+        base_version: transitions.version,
+        title: "Synthetic concurrent title",
+      }),
+    ]);
+    expect(
+      transitionRace.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const transitionState = (await service.getIncident(
+      "commander",
+      org,
+      transitions.id,
+    )) as { version: number };
+    expect(transitionState.version).toBe(transitions.version + 1);
+
+    const locationUpdate = (await service.createIncident("commander", org, {
+      title: "Synthetic location update race",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const locationUpdateRace = await Promise.allSettled([
+      service.createLocation("commander", org, locationUpdate.id, {
+        base_version: locationUpdate.version,
+        label: "Synthetic raced location",
+      }),
+      service.updateIncident("commander", org, locationUpdate.id, {
+        base_version: locationUpdate.version,
+        title: "Synthetic raced update",
+      }),
+    ]);
+    expect(
+      locationUpdateRace.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const locationUpdateState = (await service.getIncident(
+      "commander",
+      org,
+      locationUpdate.id,
+    )) as { version: number };
+    expect(locationUpdateState.version).toBe(locationUpdate.version + 1);
+
+    const locationCancel = (await service.createIncident("commander", org, {
+      title: "Synthetic location cancellation race",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const locationCancelRace = await Promise.allSettled([
+      service.createLocation("commander", org, locationCancel.id, {
+        base_version: locationCancel.version,
+        label: "Synthetic location before cancellation race",
+      }),
+      service.transitionIncident("commander", org, locationCancel.id, {
+        base_version: locationCancel.version,
+        target: "CANCELLED",
+        reason: "Synthetic concurrent cancellation",
+      }),
+    ]);
+    expect(
+      locationCancelRace.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const cancelledState = (await service.getIncident(
+      "commander",
+      org,
+      locationCancel.id,
+    )) as { status: string; version: number };
+    expect(cancelledState.version).toBe(locationCancel.version + 1);
+    const committedEvidence = await tenantTransaction(
+      runtime,
+      org,
+      userCommander,
+      (tx) =>
+        sql<{ locations: number; events: number; audits: number }>`
+        select
+          (select count(*)::int from app.incident_locations
+            where organization_id=${org} and incident_id=${locationCancel.id}) as locations,
+          (select count(*)::int from app.change_events
+            where organization_id=${org} and incident_id=${locationCancel.id}) as events,
+          (select count(*)::int from app.audit_logs
+            where organization_id=${org} and resource_id in (
+              ${locationCancel.id},
+              (select id from app.incident_locations
+                where organization_id=${org} and incident_id=${locationCancel.id})
+            )) as audits
+      `.execute(tx),
+    );
+    const locationWon = locationCancelRace[0]?.status === "fulfilled";
+    expect(committedEvidence.rows[0]).toEqual({
+      locations: locationWon ? 1 : 0,
+      events: 1 + (locationWon ? 1 : 0),
+      audits: 2,
+    });
+  });
+
   it("rejects arbitrary audit metadata and preserves append-only protection", async () => {
     await expect(
       tenantTransaction(runtime, org, userCommander, (tx) =>

@@ -8485,7 +8485,21 @@
         "required": [
           "base_version",
           "label"
-        ]
+        ],
+        "if": {
+          "required": [
+            "point"
+          ]
+        },
+        "then": {
+          "properties": {
+            "point": {
+              "required": [
+                "accuracy_m"
+              ]
+            }
+          }
+        }
       },
       "Location": {
         "type": "object",

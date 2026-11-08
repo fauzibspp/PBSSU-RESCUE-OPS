@@ -21,6 +21,7 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-007 | Q-02 lifecycle edge matrix; Sprint 3 accepts DRAFT→OPEN and Commander cancellation only from DRAFT/OPEN with reason; reject unsupported and Sprint 4-dependent edges; enforce role grants, base_version, `STALE_VERSION`/`INVALID_TRANSITION`/`PREREQUISITE_UNAVAILABLE`, atomic single version increment, event+audit commit, and no mutation on conflict. |
 | T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
 | T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
+| T-009a | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged. |
 | T-010 | Manual assignments only, active resource validation, no external dispatch. |
 | T-011 | Append-only movement corrections, assigned-vehicle check, occurred vs received time. |
 | T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |

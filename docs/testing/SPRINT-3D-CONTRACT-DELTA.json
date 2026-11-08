@@ -1,0 +1,11 @@
+{
+  "purpose": "Records the narrowly authorized Sprint 3-D point/accuracy contract clarification and supporting documentation updates.",
+  "authorization_date": "2026-11-08",
+  "scope": "LocationInput only; shared Point and future Observation schemas unchanged; database invariant and Sprint 3 inventory preserved.",
+  "files": {
+    "docs/api/openapi.json": "f1d8391a2569cd254d674a08b2da23bdc641e743854cc56f258aa2a291a1d110",
+    "docs/architecture/DATA-DICTIONARY.md": "b4a78227ada9d338ee3830de68b2685c01db1313e3e882a2d14ff0864eae0bf5",
+    "docs/planning/DECISION-REGISTER.md": "d8cae4dfbf98598d02304ee7348846f14f1ada1f2b91fcfd1fc7cbefc69e53ae",
+    "docs/testing/TEST-STRATEGY.md": "61170fa1c54838b29e3118651b7d46a6fe4bfa9c30e9a4d76c1a4a1b5d9a2884"
+  }
+}

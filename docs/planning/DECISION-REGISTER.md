@@ -71,6 +71,10 @@ Cancellation reasons are never stored in plaintext in incidents, change events, 
 
 Under separate Project Owner authorization, Sprint 3-C implements only the remaining frozen operations `listLocations` and `createLocation`. Forward-only migration `007-location-permissions` adds those two approved operation permission keys and exact G-04/G-05 role-scope grants; no new table, API operation, or permission beyond the frozen seven-operation Sprint 3 inventory was introduced. Creation requires parent `base_version`, atomically increments it once, writes an immutable logical-version-1 location, LOCATION_CREATED event, and redacted audit record. Responder ASSIGNED reads remain fail closed without Sprint 4 assignment evidence. See [Sprint 3-C validation](../testing/SPRINT-3C-LOCATION-VALIDATION.md) and [completion report](SPRINT-3C-COMPLETION-REPORT.md) for actual test evidence and limitations.
 
+## Sprint 3-D point/accuracy contract clarification (2026-11-08)
+
+**Decision:** Project Owner approved preservation of the existing database invariant `(point IS NULL) = (accuracy_m IS NULL)` and authorized a narrowly scoped OpenAPI clarification. `LocationInput` now requires `point.accuracy_m` whenever `point` is supplied. Both fields may be absent. Explicit null remains invalid, and no accuracy value is synthesized. The shared `Point` schema and its use by future observation contracts remain unchanged; response schemas and the seven-operation Sprint 3 scope are unchanged. No migration or database constraint change is authorized or required. See the Sprint 3-D final acceptance record for executed schema and HTTP validation evidence.
+
 ## M01 implementation risk
 
 | ID | Status | Finding / recommendation | Acceptance gate |

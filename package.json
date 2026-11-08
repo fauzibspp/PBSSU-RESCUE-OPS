@@ -28,6 +28,8 @@
     "db:migrate:sprint3b2": "node --import tsx scripts/sprint3b2-migrations.ts",
     "db:sprint3c": "node --import tsx scripts/sprint3c-database.ts",
     "db:migrate:sprint3c": "node --import tsx scripts/sprint3c-migrations.ts",
+    "db:sprint3d": "node --import tsx scripts/sprint3d-database.ts",
+    "db:migrate:sprint3d": "node --import tsx scripts/sprint3d-migrations.ts",
     "scope:sprint3a": "node --import tsx scripts/check-sprint3a-scope.ts",
     "scope:sprint3b": "node --import tsx scripts/check-sprint3b-scope.ts",
     "scope:sprint3c": "node --import tsx scripts/check-sprint3c-scope.ts",
