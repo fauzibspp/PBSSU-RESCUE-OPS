@@ -370,9 +370,18 @@ describe("Sprint 3-B incident operations (restricted PostgreSQL role)", () => {
       service.transitionIncident("commander", org, created.id, {
         base_version: opened.version,
         target: "DISPATCHED",
+        reason: "Synthetic unauthorized dispatch command",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      service.transitionIncident("operator", org, created.id, {
+        base_version: opened.version,
+        target: "DISPATCHED",
         reason: "Synthetic deferred command",
       }),
-    ).rejects.toMatchObject({ response: { code: "PREREQUISITE_UNAVAILABLE" } });
+    ).rejects.toMatchObject({
+      response: { code: "PREREQUISITE_UNAVAILABLE" },
+    });
     const draft = (await service.createIncident("commander", org, {
       title: "Synthetic invalid edge probe",
       category: "OTHER",
@@ -531,7 +540,7 @@ describe("Sprint 3-B incident operations (restricted PostgreSQL role)", () => {
     const locationWon = locationCancelRace[0]?.status === "fulfilled";
     expect(committedEvidence.rows[0]).toEqual({
       locations: locationWon ? 1 : 0,
-      events: 1 + (locationWon ? 1 : 0),
+      events: 2,
       audits: 2,
     });
   });

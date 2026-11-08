@@ -232,6 +232,30 @@ export class VehicleService implements OnModuleDestroy {
       organizationId,
       "updateVehicle",
       async (transaction, membershipId, userId) => {
+        const current = await sql<{ version: number }>`
+          select version from app.vehicles
+          where id=${vehicleId} and organization_id=${organizationId}
+          for update
+        `.execute(transaction);
+        if (!current.rows[0])
+          throw new NotFoundException("Vehicle unavailable");
+        if (Number(current.rows[0].version) !== Number(body.base_version))
+          throw new ConflictException("Vehicle update version is stale");
+        if (
+          body.service_state === "MAINTENANCE" ||
+          body.service_state === "RETIRED"
+        ) {
+          const activeAssignment = await sql<{ id: string }>`
+            select id from app.incident_vehicles
+            where organization_id=${organizationId} and vehicle_id=${vehicleId}
+              and released_at is null
+            limit 1
+          `.execute(transaction);
+          if (activeAssignment.rows[0])
+            throw new ConflictException(
+              "Vehicle has an active incident assignment",
+            );
+        }
         const updated = await sql<VehicleRow>`
           update app.vehicles
           set service_state=${body.service_state},version=version+1,updated_at=now()
@@ -240,15 +264,8 @@ export class VehicleService implements OnModuleDestroy {
           returning id,version,created_at,organization_id,call_sign,kind,service_state
         `.execute(transaction);
         const vehicle = updated.rows[0];
-        if (!vehicle) {
-          const existing = await sql<{ version: number }>`
-            select version from app.vehicles
-            where id=${vehicleId} and organization_id=${organizationId}
-          `.execute(transaction);
-          if (!existing.rows[0])
-            throw new NotFoundException("Vehicle unavailable");
+        if (!vehicle)
           throw new ConflictException("Vehicle update version is stale");
-        }
         await this.audit(
           transaction,
           organizationId,

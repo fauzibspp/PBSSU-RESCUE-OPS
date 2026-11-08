@@ -31,8 +31,11 @@ const ordinaryUserId = randomUUID();
 const ordinaryMembershipId = randomUUID();
 const secondResponderUserId = randomUUID();
 const secondResponderMembershipId = randomUUID();
+const raceResponderUserId = randomUUID();
+const raceResponderMembershipId = randomUUID();
 const assignmentVehicleId = randomUUID();
 const conflictVehicleId = randomUUID();
+const raceVehicleId = randomUUID();
 const platformUserId = randomUUID();
 const roleId = randomUUID();
 const roleIds = {
@@ -61,6 +64,7 @@ let app: Awaited<ReturnType<typeof NestFactory.create>>;
 let baseUrl: string;
 let authorization: string;
 let ordinaryAuthorization: string;
+let operatorAuthorization: string;
 let sessionId: string;
 
 async function selectRole(code: keyof typeof roleIds): Promise<void> {
@@ -238,10 +242,21 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         [secondResponderMembershipId, organizationId, secondResponderUserId],
       );
       await setup.query(
+        `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+         values($1,$2,'synthetic-http-assignment-race',now(),'ACTIVE')`,
+        [raceResponderUserId, `${raceResponderUserId}@example.invalid`],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic HTTP Responder Race','ACTIVE',now())`,
+        [raceResponderMembershipId, organizationId, raceResponderUserId],
+      );
+      await setup.query(
         `insert into app.vehicles(id,organization_id,call_sign,kind,service_state)
          values($1,$2,'SYNTHETIC-ASSIGN-1','Rescue','AVAILABLE'),
-               ($3,$2,'SYNTHETIC-ASSIGN-2','Rescue','AVAILABLE')`,
-        [assignmentVehicleId, organizationId, conflictVehicleId],
+               ($3,$2,'SYNTHETIC-ASSIGN-2','Rescue','AVAILABLE'),
+               ($4,$2,'SYNTHETIC-ASSIGN-RACE','Rescue','AVAILABLE')`,
+        [assignmentVehicleId, organizationId, conflictVehicleId, raceVehicleId],
       );
       await setup.query(
         `insert into app.membership_roles(organization_id,membership_id,role_id)
@@ -260,6 +275,11 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         `insert into app.membership_roles(organization_id,membership_id,role_id)
          values($1,$2,$3)`,
         [organizationId, secondResponderMembershipId, roleIds.FIELD_RESPONDER],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3)`,
+        [organizationId, raceResponderMembershipId, roleIds.FIELD_RESPONDER],
       );
       await setup.query("select set_config('app.organization_id',$1,true)", [
         secondOrganizationId,
@@ -315,6 +335,8 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
             "listLocations",
             "getAssignments",
             "listMovements",
+            "listVehicles",
+            "updateVehicle",
           ],
           "TENANT",
         ],
@@ -545,8 +567,9 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     );
     expect(redeemed.status).toBe(200);
     const session = (await redeemed.json()) as { access_token: string };
+    operatorAuthorization = `Bearer ${session.access_token}`;
     const tenantHeaders = {
-      authorization: `Bearer ${session.access_token}`,
+      authorization: operatorAuthorization,
       "x-organization-id": organizationId,
     };
     expect(
@@ -1006,6 +1029,287 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     expect(secondMovementPage.status).toBe(200);
     expect((await secondMovementPage.json()).items).toHaveLength(1);
 
+    await selectRole("CONTROL_ROOM_OPERATOR");
+    const dispatchIncidentResponse = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        title: "Synthetic dispatch prerequisite check",
+        category: "RESCUE",
+        occurred_at: "2026-11-05T08:20:00Z",
+        source_kind: "TEST",
+      }),
+    });
+    expect(dispatchIncidentResponse.status).toBe(201);
+    const dispatchIncident = (await dispatchIncidentResponse.json()) as {
+      id: string;
+      version: number;
+    };
+    const dispatchPath = `${baseUrl}/incidents/${dispatchIncident.id}/transitions`;
+    const dispatchOpen = await fetch(dispatchPath, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_version: dispatchIncident.version,
+        target: "OPEN",
+        reason: "Synthetic open",
+      }),
+    });
+    expect(dispatchOpen.status).toBe(200);
+    const openForDispatch = (await dispatchOpen.json()) as { version: number };
+    const missingDispatchPrerequisites = await fetch(dispatchPath, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_version: openForDispatch.version,
+        target: "DISPATCHED",
+        reason: "Synthetic human command",
+      }),
+    });
+    expect(missingDispatchPrerequisites.status).toBe(409);
+    expect(await missingDispatchPrerequisites.json()).toMatchObject({
+      code: "PREREQUISITE_UNAVAILABLE",
+    });
+    const dispatchAssignments = await fetch(
+      `${baseUrl}/incidents/${dispatchIncident.id}/assignments`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          base_version: openForDispatch.version,
+          membership_ids: [secondResponderMembershipId],
+          vehicle_ids: [conflictVehicleId],
+        }),
+      },
+    );
+    expect(dispatchAssignments.status).toBe(200);
+    const assignedForDispatch = (await dispatchAssignments.json()) as {
+      version: number;
+    };
+    const counts = async () => {
+      const client = await owner.connect();
+      try {
+        await client.query("begin");
+        await client.query(
+          "select set_config('app.organization_id',$1,true),set_config('app.actor_user_id',$2,true)",
+          [organizationId, userId],
+        );
+        const result = await client.query<{
+          events: string;
+          audit: string;
+        }>(
+          `select
+            (select count(*)::text from app.change_events
+             where organization_id=$1 and incident_id=$2 and event_kind='TRANSITIONED') events,
+            (select count(*)::text from app.audit_logs
+             where organization_id=$1 and resource_id=$2 and action='transitionIncident') audit`,
+          [organizationId, dispatchIncident.id],
+        );
+        await client.query("commit");
+        return result.rows[0]!;
+      } catch (error) {
+        await client.query("rollback");
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+    const countsBeforeAuditFailure = await counts();
+    await selectRole("INCIDENT_COMMANDER");
+    const commanderDispatch = await fetch(dispatchPath, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_version: assignedForDispatch.version,
+        target: "DISPATCHED",
+        reason: "Synthetic unauthorized dispatch command",
+      }),
+    });
+    expect(commanderDispatch.status).toBe(403);
+    await selectRole("CONTROL_ROOM_OPERATOR");
+    await owner.query(`
+      create function app.test_s4d_reject_transition_audit() returns trigger
+      language plpgsql set search_path=pg_catalog as $$
+      begin
+        if new.action='transitionIncident' then
+          raise exception 'synthetic Sprint 4-D audit failure';
+        end if;
+        return new;
+      end $$;
+      create trigger test_s4d_reject_transition_audit
+      before insert on app.audit_logs for each row
+      execute function app.test_s4d_reject_transition_audit();
+    `);
+    try {
+      const failedDispatch = await fetch(dispatchPath, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          base_version: assignedForDispatch.version,
+          target: "DISPATCHED",
+          reason: "Synthetic human command",
+        }),
+      });
+      expect(failedDispatch.status).toBe(500);
+      const afterFailedDispatch = await fetch(
+        `${baseUrl}/incidents/${dispatchIncident.id}`,
+        { headers },
+      );
+      expect(await afterFailedDispatch.json()).toMatchObject({
+        status: "OPEN",
+        version: assignedForDispatch.version,
+      });
+      expect(await counts()).toEqual(countsBeforeAuditFailure);
+    } finally {
+      await owner.query(
+        "drop trigger test_s4d_reject_transition_audit on app.audit_logs; drop function app.test_s4d_reject_transition_audit()",
+      );
+    }
+    const dispatched = await fetch(dispatchPath, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_version: assignedForDispatch.version,
+        target: "DISPATCHED",
+        reason: "Synthetic human command",
+      }),
+    });
+    expect(dispatched.status).toBe(200);
+    const dispatchedIncident = (await dispatched.json()) as {
+      status: string;
+      version: number;
+    };
+    expect(dispatchedIncident.status).toBe("DISPATCHED");
+    const postDispatchRelease = await fetch(
+      `${baseUrl}/incidents/${dispatchIncident.id}/assignments`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          base_version: dispatchedIncident.version,
+          membership_ids: [],
+          vehicle_ids: [],
+        }),
+      },
+    );
+    expect(postDispatchRelease.status).toBe(409);
+    expect(await postDispatchRelease.json()).toMatchObject({
+      code: "INVALID_TRANSITION",
+    });
+    const onScene = await fetch(dispatchPath, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        base_version: dispatchedIncident.version,
+        target: "ON_SCENE",
+        reason: "Synthetic arrival attempt",
+      }),
+    });
+    expect(onScene.status).toBe(409);
+    expect(await onScene.json()).toMatchObject({
+      code: "PREREQUISITE_UNAVAILABLE",
+    });
+
+    await selectRole("ORGANIZATION_ADMIN");
+    for (const state of ["MAINTENANCE", "RETIRED"]) {
+      const vehicleGuard = await fetch(
+        `${baseUrl}/vehicles/${conflictVehicleId}`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ base_version: 1, service_state: state }),
+        },
+      );
+      expect(vehicleGuard.status).toBe(409);
+    }
+
+    const raceHeaders = {
+      authorization: operatorAuthorization,
+      "x-organization-id": organizationId,
+      "content-type": "application/json",
+    };
+    const raceIncidentResponse = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers: raceHeaders,
+      body: JSON.stringify({
+        title: "Synthetic vehicle assignment race",
+        category: "RESCUE",
+        occurred_at: "2026-11-05T08:30:00Z",
+        source_kind: "TEST",
+      }),
+    });
+    expect(raceIncidentResponse.status).toBe(201);
+    const raceIncident = (await raceIncidentResponse.json()) as {
+      id: string;
+      version: number;
+    };
+    const raceOpenResponse = await fetch(
+      `${baseUrl}/incidents/${raceIncident.id}/transitions`,
+      {
+        method: "POST",
+        headers: raceHeaders,
+        body: JSON.stringify({
+          base_version: raceIncident.version,
+          target: "OPEN",
+          reason: "Synthetic race setup",
+        }),
+      },
+    );
+    expect(raceOpenResponse.status).toBe(200);
+    const raceOpen = (await raceOpenResponse.json()) as { version: number };
+    const raceResults = await Promise.all([
+      fetch(`${baseUrl}/incidents/${raceIncident.id}/assignments`, {
+        method: "PUT",
+        headers: raceHeaders,
+        body: JSON.stringify({
+          base_version: raceOpen.version,
+          membership_ids: [raceResponderMembershipId],
+          vehicle_ids: [raceVehicleId],
+        }),
+      }),
+      fetch(`${baseUrl}/vehicles/${raceVehicleId}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ base_version: 1, service_state: "MAINTENANCE" }),
+      }),
+    ]);
+    expect(raceResults.map((response) => response.status).sort()).toEqual([
+      200, 409,
+    ]);
+    const raceStateClient = await owner.connect();
+    let raceVehicleState: { service_state: string; active_assignment: boolean };
+    try {
+      await raceStateClient.query("begin");
+      await raceStateClient.query(
+        "select set_config('app.organization_id',$1,true),set_config('app.actor_user_id',$2,true)",
+        [organizationId, userId],
+      );
+      const stateResult = await raceStateClient.query<{
+        service_state: string;
+        active_assignment: boolean;
+      }>(
+        `select v.service_state,exists(select 1 from app.incident_vehicles iv
+         where iv.organization_id=v.organization_id and iv.vehicle_id=v.id
+           and iv.released_at is null) active_assignment
+         from app.vehicles v where v.organization_id=$1 and v.id=$2`,
+        [organizationId, raceVehicleId],
+      );
+      raceVehicleState = stateResult.rows[0]!;
+      await raceStateClient.query("commit");
+    } catch (error) {
+      await raceStateClient.query("rollback");
+      throw error;
+    } finally {
+      raceStateClient.release();
+    }
+    expect(
+      (raceVehicleState.service_state === "AVAILABLE" &&
+        raceVehicleState.active_assignment) ||
+        (raceVehicleState.service_state === "MAINTENANCE" &&
+          !raceVehicleState.active_assignment),
+    ).toBe(true);
+    await selectRole("INCIDENT_COMMANDER");
+
     await selectRole("ORGANIZATION_ADMIN");
     expect((await fetch(assignmentPath, { headers })).status).toBe(200);
     const adminAssignmentWrite = await fetch(assignmentPath, {
@@ -1074,8 +1378,8 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         headers,
         body: JSON.stringify({
           base_version: assignmentVersion,
-          membership_ids: [],
-          vehicle_ids: [assignmentVehicleId],
+          membership_ids: [ordinaryMembershipId],
+          vehicle_ids: [],
         }),
       }),
       fetch(assignmentPath, {
@@ -1083,8 +1387,8 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         headers,
         body: JSON.stringify({
           base_version: assignmentVersion,
-          membership_ids: [secondResponderMembershipId],
-          vehicle_ids: [],
+          membership_ids: [],
+          vehicle_ids: [assignmentVehicleId],
         }),
       }),
     ]);

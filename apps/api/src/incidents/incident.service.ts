@@ -393,7 +393,7 @@ export class IncidentService implements OnModuleDestroy {
         const current = await sql<{
           status: string;
           version: number;
-        }>`select status,version from app.incidents where organization_id=${organizationId} and id=${incident}`.execute(
+        }>`select status,version from app.incidents where organization_id=${organizationId} and id=${incident} for update`.execute(
           tx,
         );
         if (!current.rows[0])
@@ -411,8 +411,12 @@ export class IncidentService implements OnModuleDestroy {
           throw new ForbiddenException("Access denied");
         if (target === "OPEN" && from !== "DRAFT")
           conflict("INVALID_TRANSITION", "Incident transition is invalid");
+        const dispatching = from === "OPEN" && target === "DISPATCHED";
+        if (target === "DISPATCHED" && !dispatching)
+          conflict("INVALID_TRANSITION", "Incident transition is invalid");
+        if (dispatching && role !== "CONTROL_ROOM_OPERATOR")
+          throw new ForbiddenException("Access denied");
         if (
-          (from === "OPEN" && target === "DISPATCHED") ||
           (from === "DISPATCHED" && target === "ON_SCENE") ||
           (from === "ON_SCENE" &&
             ["MONITORING", "RETURNING"].includes(target)) ||
@@ -422,7 +426,40 @@ export class IncidentService implements OnModuleDestroy {
             "PREREQUISITE_UNAVAILABLE",
             "Required assignment or movement evidence is unavailable",
           );
-        if (target !== "OPEN" && target !== "CANCELLED")
+        if (dispatching) {
+          const responders = await sql<{ id: string }>`
+            select m.id
+            from app.incident_personnel ip
+            join app.memberships m
+              on m.organization_id=ip.organization_id and m.id=ip.membership_id
+            join app.membership_roles mr
+              on mr.organization_id=m.organization_id and mr.membership_id=m.id
+            join app.roles r
+              on r.organization_id=mr.organization_id and r.id=mr.role_id
+            where ip.organization_id=${organizationId}
+              and ip.incident_id=${incident} and ip.released_at is null
+              and m.status='ACTIVE' and r.code='FIELD_RESPONDER'
+            order by m.id,mr.role_id
+            for update of m,mr
+          `.execute(tx);
+          const vehicles = await sql<{ id: string }>`
+            select v.id
+            from app.incident_vehicles iv
+            join app.vehicles v
+              on v.organization_id=iv.organization_id and v.id=iv.vehicle_id
+            where iv.organization_id=${organizationId}
+              and iv.incident_id=${incident} and iv.released_at is null
+              and v.service_state='AVAILABLE'
+            order by v.id
+            for update of v
+          `.execute(tx);
+          if (responders.rows.length === 0 || vehicles.rows.length === 0)
+            conflict(
+              "PREREQUISITE_UNAVAILABLE",
+              "Required assignment or movement evidence is unavailable",
+            );
+        }
+        if (target !== "OPEN" && target !== "CANCELLED" && !dispatching)
           conflict("INVALID_TRANSITION", "Incident transition is invalid");
         const updated =
           await sql<IncidentRecord>`update app.incidents set status=${target},version=version+1,updated_at=now()
