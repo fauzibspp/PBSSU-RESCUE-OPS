@@ -9,14 +9,21 @@
     "npm": "12.2.x"
   },
   "workspaces": [
-    "apps/api"
+    "apps/api",
+    "apps/web"
   ],
   "scripts": {
     "build": "npm run build --workspace @pbssu/api",
-    "typecheck": "tsc --noEmit -p apps/api/tsconfig.json",
-    "lint": "oxlint --deny-warnings apps/api/src apps/api/test scripts",
-    "format": "prettier --write apps/api scripts package.json tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
-    "format:check": "prettier --check apps/api scripts package.json tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
+    "build:web": "npm run build --workspace @pbssu/web",
+    "dev:api": "node --env-file=.env --import tsx --watch apps/api/src/main.ts",
+    "dev:web": "npm run dev --workspace @pbssu/web",
+    "test:browser": "playwright test",
+    "test:browser:headed": "playwright test --headed",
+    "test:browser:report": "playwright show-report",
+    "typecheck": "tsc --noEmit -p apps/api/tsconfig.json && npm run typecheck --workspace @pbssu/web",
+    "lint": "oxlint --deny-warnings apps/api/src apps/api/test apps/web/src tests/browser scripts playwright.config.ts",
+    "format": "prettier --write apps/api apps/web tests/browser scripts docs/planning/VISUAL-DEVELOPMENT-WORKFLOW.md docs/testing/VISUAL-DEVELOPMENT-VALIDATION.md package.json playwright.config.ts tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
+    "format:check": "prettier --check apps/api apps/web tests/browser scripts docs/planning/VISUAL-DEVELOPMENT-WORKFLOW.md docs/testing/VISUAL-DEVELOPMENT-VALIDATION.md package.json playwright.config.ts tsconfig.json .oxlintrc.json vitest*.config.ts infra/versions.json",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:migrate:local": "node --import tsx scripts/migrate-database.ts",
@@ -42,13 +49,20 @@
     "start:api": "npm run start --workspace @pbssu/api"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/express": "5.0.6",
     "@types/node": "24.10.0",
     "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
     "oxlint": "1.90.0",
     "prettier": "3.9.10",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
+    "vite": "8.3.6",
     "vitest": "5.1.0"
   }
 }

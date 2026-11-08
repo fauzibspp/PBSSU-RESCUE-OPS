@@ -1,0 +1,248 @@
+:root {
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: #e8f0e9;
+  background: #0b1715;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --muted: #a0b4aa;
+  --line: #29423a;
+  --accent: #83d4a5;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+a {
+  color: inherit;
+}
+.page-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+.topbar {
+  height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+.brand b {
+  color: var(--accent);
+  font-weight: 700;
+}
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #6daa87;
+  border-radius: 10px 10px 10px 3px;
+  color: var(--accent);
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+}
+.environment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid #3c5b4d;
+  border-radius: 999px;
+  color: #b8d6c1;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.environment-pill span,
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px #83d4a566;
+}
+.hero {
+  max-width: 720px;
+  padding: 88px 0 48px;
+}
+.eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+h1,
+h2 {
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+h1 {
+  max-width: 700px;
+  margin: 18px 0;
+  font-size: clamp(38px, 6vw, 66px);
+  line-height: 1.04;
+  letter-spacing: -0.055em;
+}
+.intro {
+  max-width: 620px;
+  color: #b0c1b8;
+  font-size: 17px;
+  line-height: 1.75;
+}
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.status-card {
+  min-height: 190px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #14241f, #101e1b);
+}
+.card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.number {
+  color: #80a18d;
+  font:
+    600 11px "Segoe UI",
+    Arial,
+    sans-serif;
+  letter-spacing: 0.12em;
+}
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 25px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.status-dot.idle {
+  background: #dfa860;
+  box-shadow: 0 0 12px #dfa86044;
+}
+.status-dot.checking {
+  background: #9ab0a3;
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+.detail {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.scope-note {
+  display: flex;
+  gap: 16px;
+  margin: 22px 0 70px;
+  padding: 22px;
+  border: 1px solid #665334;
+  border-radius: 14px;
+  background: #211d15;
+}
+.scope-icon {
+  flex: 0 0 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d4a65f;
+  border-radius: 50%;
+  color: #edc482;
+  font:
+    700 14px "Segoe UI",
+    Arial,
+    sans-serif;
+}
+.scope-note h2 {
+  margin: 2px 0 8px;
+  color: #f1d8a9;
+  font-size: 15px;
+}
+.scope-note p {
+  max-width: 790px;
+  margin: 0;
+  color: #c8bda7;
+  font-size: 13px;
+  line-height: 1.7;
+}
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0 32px;
+  border-top: 1px solid var(--line);
+  color: #82968b;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+@keyframes pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 0 20px;
+  }
+  .topbar {
+    height: 68px;
+  }
+  .environment-pill {
+    padding: 7px 9px;
+    font-size: 9px;
+  }
+  .hero {
+    padding: 62px 0 36px;
+  }
+  .intro {
+    font-size: 15px;
+  }
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+  .status-card {
+    min-height: 166px;
+  }
+  .scope-note {
+    margin-bottom: 48px;
+  }
+  footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

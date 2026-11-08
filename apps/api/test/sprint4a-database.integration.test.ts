@@ -11,7 +11,8 @@ interface State {
 
 const state = JSON.parse(
   readFileSync(
-    new URL("../../../.cache/sprint4a/database.json", import.meta.url),
+    process.env.PBSSU_TEST_DATABASE_STATE ??
+      new URL("../../../.cache/sprint4a/database.json", import.meta.url),
     "utf8",
   ),
 ) as State;
