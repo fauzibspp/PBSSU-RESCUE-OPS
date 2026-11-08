@@ -1,15 +1,16 @@
 {
-  "purpose": "Records Sprint 4's bounded duty and lifecycle contract clarifications, supporting baseline-document reconciliation, and the responder uniqueness scope preflight blocker.",
+  "purpose": "Records owner-approved Sprint 4 duty, global responder uniqueness and lifecycle contract clarifications with their supporting baseline-document fingerprints.",
   "authorization_date": "2026-11-08",
-  "scope": "Proposed three-table/four-existing-operation Sprint 4 contract only; no operation IDs or permission keys added. Owner decision S4-P-01 makes PersonnelAssignment.duty optional/nullable without adding it to AssignmentInput or assigning a default/vocabulary. Technical Lead clarification keeps assignment intervals active from DISPATCHED until a separately authorized future release workflow; Sprint 4 implements no release or terminal transitions. Responder uniqueness scope remains pending owner decision, so the scope is not frozen and implementation is blocked.",
+  "scope": "Frozen 3-table/four-existing-operation Sprint 4 contract. S4-P-01 duty is optional and nullable with no request field, default or invented vocabulary. S4-P-02 globally limits one active assignment per canonical users.id across organizations, enforced by database partial unique index and same-tenant membership composite binding without cross-tenant lookups. Technical Lead clarification preserves active intervals after DISPATCHED until a separately authorized future release; Sprint 4 implements no such release or terminal transitions.",
   "authorization_source": "Project Owner instruction: PBSSU RESCUE OPS — RESUME AUTONOMOUS SPRINT 4 EXECUTION; bounded Technical Lead policy clarification 2026-11-08",
   "files": {
-    "docs/api/openapi.json": "02cfa6fe2e4d5256ce6ed46ed2a0858aaefb2b4578f49fcdf115717a4361c3b2",
-    "docs/architecture/DATA-DICTIONARY.md": "6eca1fcf44de3cf38f609e15b48b3f94b80e839f2b807c6a9e29fbe8239252d3",
-    "docs/architecture/DATABASE-SCHEMA.md": "03e99b444537e1aead9dc86c9829347296df47e04023e51914a62742d4d59329",
-    "docs/planning/DECISION-REGISTER.md": "30912614b1170d04f98639448d624ebd3cbabc8640422e8a373c1fa555486f43",
-    "docs/requirements/TRACEABILITY.md": "52079e9d00728d3ff29212323390cab0fc24e64668df65bfbbcd3816f66bbd4b",
+    "docs/api/openapi.json": "cecd0707ad8ee3f87ce3278f33268dacb3ee700666b579bbb4d0351ca7dd97b2",
+    "docs/architecture/DATA-DICTIONARY.md": "e92d289ebd368f8719af469435da61171758ace930c6648d4d58186b3dc54a87",
+    "docs/architecture/DATABASE-SCHEMA.md": "971406738a911401cce43fc922e2ef62c012d4f0522b903402ec9b8372beeb67",
+    "docs/planning/DECISION-REGISTER.md": "421c53056daf2103f39b02755c49186cef837652f1130a45cea02865db15b147",
+    "docs/requirements/TRACEABILITY.md": "d4c0c74ad52f4f4b082d7bb659e015afa0a87158da1a309d0a639f69aaf98204",
     "docs/testing/TEST-STRATEGY.md": "5ad7bbfdda6670c8ac48ebb3749f0c1dae8a9afecd3ed8dfaf388bd480995f4b",
-    "docs/requirements/SRS.md": "6dacbdbe013a39d2ea9ede6b9743bb7e26e8c119f9466a6a26fdf7eb4cee6329"
+    "docs/requirements/SRS.md": "98e0dd4b02160d6099665a14b3573c50d8c2e94ecbac1524d8135156164a60ca",
+    "docs/security/AUTHORIZATION-MODEL.md": "3df32d45f408855a8582fcf597294407ff698d1697036d2923e1e7358afbcb21"
   }
 }

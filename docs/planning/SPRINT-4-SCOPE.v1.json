@@ -1,7 +1,7 @@
 {
   "document": "PBSSU-S4-SCOPE-001",
   "version": "1.0.0",
-  "status": "BLOCKED / NOT FROZEN — responder uniqueness tenancy scope requires owner clarification",
+  "status": "FROZEN — EXACT OWNER-APPROVED 3-TABLE / 4-OPERATION SCOPE",
   "policy_approval": {
     "authority": "Project Owner",
     "decision_date": "2026-11-08",
@@ -23,9 +23,9 @@
     "new_tables": [
       {
         "name": "incident_personnel",
-        "status": "PROPOSED — blocked pending responder uniqueness scope",
+        "status": "FROZEN",
         "candidate_additions": [
-          "A user_id/composite FK is required only if the owner selects global responder uniqueness; exact key and uniqueness scope remain unresolved"
+          "canonical user_id bound to the tenant membership by a composite FK; global active uniqueness is approved across all organizations"
         ],
         "active_definition": "released_at IS NULL",
         "history": "new UUID/interval for each re-add; prior row retained",
@@ -33,13 +33,13 @@
       },
       {
         "name": "incident_vehicles",
-        "status": "PROPOSED — blocked pending responder uniqueness scope",
+        "status": "FROZEN",
         "active_definition": "released_at IS NULL",
         "history": "new UUID/interval for each re-add; prior row retained"
       },
       {
         "name": "movement_logs",
-        "status": "PROPOSED — blocked pending responder uniqueness scope",
+        "status": "FROZEN",
         "append_only": true,
         "correction_link": "supersedes_id; expose it in existing Movement response"
       }
@@ -49,25 +49,25 @@
         "name": "incidents",
         "operation": "setAssignments",
         "change": "Use incident.version base_version; successful change increments once; empty replacement set explicitly releases all active assignments before DISPATCHED; identical set is a no-op.",
-        "status": "PROPOSED CONTRACT RECONCILIATION"
+        "status": "FROZEN — bounded in-scope behavior"
       },
       {
         "name": "incidents",
         "operation": "transitionIncident",
         "change": "Enable DISPATCHED only by explicit human command after active eligible responder and AVAILABLE vehicle prerequisites; ON_SCENE remains unavailable.",
-        "status": "PROPOSED BOUNDED BEHAVIOR CHANGE"
+        "status": "FROZEN — bounded in-scope behavior"
       },
       {
         "name": "vehicles",
         "operation": "updateVehicle",
         "change": "Reject MAINTENANCE/RETIRED while any active assignment exists; serialize with assignment writes.",
-        "status": "PROPOSED BOUNDED BEHAVIOR CHANGE"
+        "status": "FROZEN — bounded in-scope behavior"
       },
       {
         "name": "memberships",
         "operation": "setAssignments",
         "change": "Require active membership and bind canonical user_id for global uniqueness.",
-        "status": "PROPOSED BOUNDED FK/ELIGIBILITY CHECK"
+        "status": "FROZEN — bounded in-scope behavior"
       },
       {
         "name": "change_events",
@@ -146,19 +146,19 @@
         "sequence": 8,
         "name": "008-sprint4-permissions",
         "contents": "four existing permission keys and exact approved role mappings only",
-        "status": "PROPOSED — blocked pending responder uniqueness scope"
+        "status": "FROZEN"
       },
       {
         "sequence": 9,
         "name": "009-sprint4-assignment-movement",
         "contents": "three candidate tenant tables, tenant-composite constraints, RLS/FORCE RLS and indexes",
-        "status": "PROPOSED — blocked pending responder uniqueness scope"
+        "status": "FROZEN"
       }
     ]
   },
   "semantics": {
     "assignment_replacement": "Before DISPATCHED only; arrays are complete active sets; empty array is explicit release-all; released rows are retained; re-add creates a new interval/UUID; identical active set has no mutation.",
-    "responder_uniqueness": "OWNER DECISION REQUIRED: the approved limit of one active incident assignment per responder does not specify whether exclusivity is global across all organizations or scoped to a tenant. Do not implement a global or tenant-scoped uniqueness constraint until this scope is approved. Any conflict response must avoid cross-tenant disclosure.",
+    "responder_uniqueness": "Project Owner approved 2026-11-08: one active incident assignment per canonical users.id globally across all organizations. Bind user_id to (organization_id,membership_id) via a composite FK. Enforce atomically with a partial unique index on user_id where released_at IS NULL. Never query across tenants to precheck. Normalize unique conflicts to a stable generic response without identifying other tenant records.",
     "vehicle_uniqueness": "At most one active assignment globally per vehicle UUID; only same-tenant AVAILABLE vehicles eligible; MAINTENANCE/RETIRED ineligible.",
     "movement": "Only contract kinds DEPARTURE/ARRIVAL/RETURN/OTHER. Actor membership and received_at are server-derived. occurred_at remains human reported UTC. Movement rows use immutable logical version 1 and do not increment incident.version. List deterministically by occurred_at, received_at, UUID. New correction record links through supersedes_id; exact replay of same client UUID returns existing representation, reuse with different content is generic 409. No update/delete, invented clock threshold, correction reason, or event-kind-specific authority.",
     "lifecycle": "Only explicit human OPEN→DISPATCHED may be enabled after validating active eligible same-incident responder and AVAILABLE vehicle assignments, tenant scope and no conflicts. DISPATCHED is internal assignment evidence only. ON_SCENE, MONITORING, RETURNING, COMPLETED and CLOSED remain unavailable in Sprint 4. No automatic transition, release, stand-down or vehicle availability change.",
@@ -212,16 +212,7 @@
     "newRoles": 0,
     "changeEventsExtension": 0
   },
-  "approval": "Operational policies approved; implementation authorization is conditional. Exact scope is NOT FROZEN because responder uniqueness tenancy scope remains unresolved.",
-  "unresolved_blockers": [
-    {
-      "id": "S4-B-01",
-      "question": "Does the one-active-incident-assignment-per-responder rule apply globally to canonical users across organizations, or separately within each tenant?",
-      "reason": "This changes cross-organization operational eligibility and the database uniqueness constraint; the approved policy and existing logical model do not determine the scope.",
-      "status": "PENDING OWNER DECISION",
-      "implementation_effect": "Blocks assignment schema, uniqueness indexes, assignment eligibility, concurrency tests, and Sprint 4 scope freeze."
-    }
-  ],
+  "approval": "Project Owner approved global responder uniqueness 2026-11-08; exact scope frozen after successful preflight on 2026-11-08. Sprint 4-A through 4-D are authorized conditionally within this inventory.",
   "stop_rule": "Implement only the frozen inventory and explicit bounded dependencies. Stop on new operational ambiguity, security failure, or required scope expansion.",
   "duty_decision": {
     "id": "S4-P-01-DUTY-CONTRACT",
@@ -237,5 +228,16 @@
       "decision": "From DISPATCHED onward, assignment intervals stay active until a separately authorized future resource-release workflow explicitly ends them. Sprint 4 does not implement release or terminal lifecycle transitions; future COMPLETED/CLOSED must reject unresolved active assignments.",
       "scope_effect": "Contract/lifecycle clarification only; no table, operation, role or permission added."
     }
-  ]
+  ],
+  "scope_freeze": {
+    "status": "FROZEN",
+    "date": "2026-11-08",
+    "basis": "S4-P-01 through S4-P-09 owner approval, explicit S4-P-02 global uniqueness approval, exact 3-table/4-operation reconciliation, and successful documented preflight"
+  },
+  "responder_uniqueness_approval": {
+    "authority": "Project Owner",
+    "date": "2026-11-08",
+    "rule": "At most one active incident assignment per canonical users.id across all organizations.",
+    "enforcement": "Database partial unique index over active rows; assignment user_id composite-bound to selected organization membership; no cross-tenant precheck; generic conflict response without conflicting resource identity."
+  }
 }

@@ -7,10 +7,10 @@
 
 ## Recommendation
 
-- **Planning: CONDITIONAL GO.** The roadmap, logical schema, authorization matrix, and OpenAPI identify the assignment and movement domains. The owner-approved S4-P package and optional/nullable duty contract are reconciled, but S4-P-02 does not settle global versus tenant-scoped responder exclusivity.
-- **Implementation: NO-GO pending owner clarification.** The exact 3-table/4-operation inventory is proposed but not frozen. Do not begin S4-A until the owner resolves responder uniqueness scope and preflight is rerun successfully.
+- **Planning: GO.** The owner has approved S4-P-02 global responder uniqueness in addition to S4-P-01 through S4-P-09 and the duty clarification. The assignment schema can bind canonical `users.id` to the selected tenant membership and enforce global active uniqueness with a partial unique index.
+- **Implementation: CONDITIONAL GO after preflight rerun.** The exact 3-table/4-operation inventory remains proposed until all renewed gates pass; then it may be frozen and implementation may begin.
 
-The Project Owner approved the candidate three-table/four-existing-operation inventory and conditionally authorized implementation. The manifest is BLOCKED / NOT FROZEN pending a decision on responder uniqueness scope.
+The Project Owner approved the candidate three-table/four-existing-operation inventory and conditionally authorized implementation. S4-P-02 global uniqueness is now explicitly approved; manifest freeze awaits renewed preflight validation.
 
 ## Exact roadmap delta
 
@@ -63,7 +63,7 @@ Current request schemas describe `AssignmentInput` as `base_version`, up to 50 `
 
 The approved logical schema and dictionary already list three unimplemented tenant entities:
 
-1. `incident_personnel`: incident/membership assignment, optional nullable duty without default, assigned time, release time, and a user/membership relationship. The uniqueness key remains unresolved pending the owner's global-versus-tenant decision.
+1. `incident_personnel`: incident/membership assignment, canonical `user_id` bound to same-tenant membership, optional nullable duty without default, assigned time and release time. Active rows are globally unique by `user_id`.
 2. `incident_vehicles`: incident/vehicle assignment, assigned time, release time.
 3. `movement_logs`: assigned vehicle, optional incident location, movement kind, client occurrence time, server receipt time, actor membership, optional correction link and note.
 

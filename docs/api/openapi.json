@@ -2252,7 +2252,7 @@
           "M06"
         ],
         "summary": "Human-authorized online replacement of active assignment set.",
-        "description": "Human-authorized online replacement of active assignment set. base_version is incident.version; successful changes increment it. Return assignment UUIDs for movement recording. Release removed assignments and preserve history. No external notification or automatic dispatch.",
+        "description": "Human-authorized online replacement of the active assignment sets. Arrays are complete sets; an empty set explicitly releases all active assignments before DISPATCHED. Identical sets are no-ops. Re-adding a released resource creates a new assignment interval and UUID; history is preserved. base_version is incident.version; each successful change increments it once. Global active responder uniqueness is enforced by canonical users.id across all organizations, while active membership is validated in the selected tenant. Conflicts return a stable generic response without disclosing cross-tenant records. No external notification or automatic dispatch.",
         "x-requirements": [
           "FR-010"
         ],
@@ -8711,6 +8711,11 @@
           "actor_membership_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "supersedes_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional same-incident movement record corrected by this append-only record."
           }
         },
         "required": [
@@ -10424,7 +10429,10 @@
             "format": "uuid"
           },
           "duty": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "minLength": 1,
             "maxLength": 100
           },

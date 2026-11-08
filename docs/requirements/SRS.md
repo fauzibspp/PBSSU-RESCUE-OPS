@@ -81,3 +81,7 @@ SEC-ID-01–06 in the [identity lifecycle](../api/IDENTITY-LIFECYCLE.md) refine 
 ## Official approval and delivery boundary
 
 [Owner approval dated 2026-11-07](../planning/STAKEHOLDER-APPROVAL-2026-11-07.md) accepts Q-01/Q-03 and Q-04 implementation families and C-02 policy. Generic responses stay metadata-only; redeemCredentialHandoff alone releases one-time proof-bound SESSION/TOTP_SETUP/RECOVERY_CODES material under the documented custom-media/cookie controls. Email invitation/account recovery cannot waive MFA. M01 delivery uses synthetic/mock-only; no production outbound or real-user provisioning authorized. T-026 adds handoff/mock/production-denial acceptance; implementation and runtime proof remain outstanding.
+
+## Sprint 4 owner clarification
+
+S4-P-02 approval dated 2026-11-08 requires at most one active incident assignment per canonical user (`users.id`) across all organizations. The assignment must bind that user to an active membership in the selected tenant. Enforce uniqueness atomically in the database, preserve released intervals, and return only a generic conflict without disclosing another tenant's operational records. This rule does not grant cross-tenant read access.
