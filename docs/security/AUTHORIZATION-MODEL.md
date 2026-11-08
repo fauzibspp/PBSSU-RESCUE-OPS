@@ -45,7 +45,7 @@ Groups are documentation shorthand for the following exact operation keys, not r
 
 G-15 restricts operator transitions; commander and operator G-14/G-16 grants cover field evidence synchronization and minimized assignment selection. Org admin and auditor receive no sync transport grant by default. Responder receives no report/agency access; necessary personnel/vehicle labels are projected through getAssignments. No role gains private personnel-directory access implicitly.
 
-## Q-02 incident authority overlay (approved policy; implementation pending)
+## Q-02 incident authority overlay (approved policy; Sprint 3 implementation recorded locally)
 
 Preserve Q-01 exact grants and the six role templates. For Sprint 3, `listIncidents`/`getIncident` and `listLocations` remain governed by their existing explicit G-04 grants and resource scopes. `createIncident`, descriptive `updateIncident`, and `createLocation` use their exact G-05 permissions for Control Room Operator and Incident Commander. `transitionIncident` ordinary transitions are Operator-only through G-15; G-12 reserves cancellation from DRAFT/OPEN and closure from COMPLETED to Incident Commander. Cancellation requires a nonempty reason. Target-state checks enforce these different authorities even though the REST operation ID is shared. A successful command checks required assurance and current base version.
 

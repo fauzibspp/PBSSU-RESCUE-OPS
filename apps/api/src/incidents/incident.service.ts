@@ -51,6 +51,17 @@ export interface IncidentRecord {
   occurred_at: Date;
   source_kind: string;
 }
+interface LocationRecord {
+  id: string;
+  version: number;
+  created_at: Date;
+  organization_id: string;
+  incident_id: string;
+  label: string;
+  longitude: number | null;
+  latitude: number | null;
+  accuracy_m: number | null;
+}
 
 function bad(): never {
   throw new BadRequestException("Invalid request");
@@ -163,9 +174,10 @@ export class IncidentService implements OnModuleDestroy {
     action: string,
     incident: string,
     metadata = "{}",
+    resourceType = "INCIDENT",
   ) {
     await sql`insert into app.audit_logs(organization_id,actor_user_id,actor_membership_id,action,resource_type,resource_id,result,correlation_id,metadata)
-      values(${org},${actor},${membership},${action},'INCIDENT',${incident},'SUCCESS',${randomUUID()},${metadata}::jsonb)`.execute(
+      values(${org},${actor},${membership},${action},${resourceType},${incident},'SUCCESS',${randomUUID()},${metadata}::jsonb)`.execute(
       tx,
     );
   }
@@ -446,6 +458,193 @@ export class IncidentService implements OnModuleDestroy {
           metadata,
         );
         return result;
+      },
+    );
+  }
+
+  async listLocations(
+    token: string,
+    org: string,
+    incidentValue: string,
+    cursor?: string,
+    limitValue?: string,
+  ) {
+    const organizationId = id(org);
+    const incident = id(incidentValue);
+    const limit = limitValue === undefined ? 50 : Number(limitValue);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return bad();
+    let after: string | null = null;
+    if (cursor !== undefined) {
+      try {
+        after = id(Buffer.from(cursor, "base64url").toString());
+      } catch {
+        return bad();
+      }
+    }
+    return this.withPermission(
+      token,
+      organizationId,
+      "listLocations",
+      async (tx, _membership, _actor, _role, scope) => {
+        // Assignment evidence is not part of Sprint 3; assigned-only reads fail closed.
+        if (scope !== "TENANT")
+          throw new NotFoundException("Incident unavailable");
+        const parent = await sql<{ id: string }>`
+          select id from app.incidents
+          where organization_id=${organizationId} and id=${incident}
+        `.execute(tx);
+        if (!parent.rows[0])
+          throw new NotFoundException("Incident unavailable");
+        const rows = await sql<LocationRecord>`
+          select l.id,1::integer as version,l.created_at,l.organization_id,l.incident_id,l.label,
+            case when l.point is null then null else st_x(l.point::geometry) end as longitude,
+            case when l.point is null then null else st_y(l.point::geometry) end as latitude,
+            l.accuracy_m
+          from app.incident_locations l
+          where l.organization_id=${organizationId} and l.incident_id=${incident}
+            and (${after}::uuid is null or l.id>${after}::uuid)
+          order by l.id limit ${limit + 1}
+        `.execute(tx);
+        const selected = rows.rows.slice(0, limit);
+        return {
+          items: selected.map((row) => ({
+            id: row.id,
+            version: 1,
+            created_at: row.created_at,
+            organization_id: row.organization_id,
+            incident_id: row.incident_id,
+            label: row.label,
+            ...(row.longitude === null || row.latitude === null
+              ? {}
+              : {
+                  point: {
+                    longitude: Number(row.longitude),
+                    latitude: Number(row.latitude),
+                    accuracy_m: Number(row.accuracy_m),
+                  },
+                }),
+          })),
+          next_cursor:
+            rows.rows.length > limit
+              ? Buffer.from(String(selected.at(-1)!.id)).toString("base64url")
+              : null,
+        };
+      },
+    );
+  }
+
+  async createLocation(
+    token: string,
+    org: string,
+    incidentValue: string,
+    input: unknown,
+  ) {
+    const body = record(input);
+    if (
+      Object.keys(body).some(
+        (key) =>
+          !["base_version", "label", "point", "description"].includes(key),
+      )
+    )
+      return bad();
+    const base = version(body.base_version);
+    const label = bounded(body.label, 1, 200);
+    const description =
+      body.description === undefined
+        ? null
+        : bounded(body.description, 1, 1000);
+    let point: {
+      longitude: number;
+      latitude: number;
+      accuracy_m: number;
+    } | null = null;
+    if (body.point !== undefined) {
+      const inputPoint = record(body.point);
+      if (
+        Object.keys(inputPoint).some(
+          (key) => !["longitude", "latitude", "accuracy_m"].includes(key),
+        ) ||
+        typeof inputPoint.longitude !== "number" ||
+        !Number.isFinite(inputPoint.longitude) ||
+        inputPoint.longitude < -180 ||
+        inputPoint.longitude > 180 ||
+        typeof inputPoint.latitude !== "number" ||
+        !Number.isFinite(inputPoint.latitude) ||
+        inputPoint.latitude < -90 ||
+        inputPoint.latitude > 90 ||
+        typeof inputPoint.accuracy_m !== "number" ||
+        !Number.isFinite(inputPoint.accuracy_m) ||
+        inputPoint.accuracy_m < 0
+      )
+        return bad();
+      point = {
+        longitude: inputPoint.longitude,
+        latitude: inputPoint.latitude,
+        accuracy_m: inputPoint.accuracy_m,
+      };
+    }
+    const organizationId = id(org);
+    const incident = id(incidentValue);
+    return this.withPermission(
+      token,
+      organizationId,
+      "createLocation",
+      async (tx, membership, actor) => {
+        const updated = await sql<{ version: number }>`
+          update app.incidents
+          set version=version+1,updated_at=now()
+          where organization_id=${organizationId} and id=${incident}
+            and version=${base} and status not in ('CLOSED','CANCELLED')
+          returning version
+        `.execute(tx);
+        if (!updated.rows[0])
+          await this.versionConflict(tx, organizationId, incident, base);
+        const inserted = await sql<LocationRecord>`
+          insert into app.incident_locations
+            (organization_id,incident_id,label,point,accuracy_m,description)
+          values (
+            ${organizationId},${incident},${label},
+            ${point === null ? null : sql`st_setsrid(st_makepoint(${point.longitude},${point.latitude}),4326)::geography`},
+            ${point?.accuracy_m ?? null},${description}
+          )
+          returning id,1::integer as version,created_at,organization_id,incident_id,label,
+            case when point is null then null else st_x(point::geometry) end as longitude,
+            case when point is null then null else st_y(point::geometry) end as latitude,
+            accuracy_m
+        `.execute(tx);
+        const location = inserted.rows[0]!;
+        await sql`
+          insert into app.change_events
+            (organization_id,incident_id,location_id,entity_type,entity_id,event_kind,entity_version,visibility_scope)
+          values(${organizationId},${incident},${location.id},'INCIDENT_LOCATION',${location.id},'LOCATION_CREATED',1,'{}'::jsonb)
+        `.execute(tx);
+        await this.audit(
+          tx,
+          organizationId,
+          actor,
+          membership,
+          "createLocation",
+          location.id,
+          "{}",
+          "INCIDENT_LOCATION",
+        );
+        return {
+          id: location.id,
+          version: 1,
+          created_at: location.created_at,
+          organization_id: location.organization_id,
+          incident_id: location.incident_id,
+          label: location.label,
+          ...(location.longitude === null || location.latitude === null
+            ? {}
+            : {
+                point: {
+                  longitude: Number(location.longitude),
+                  latitude: Number(location.latitude),
+                  accuracy_m: Number(location.accuracy_m),
+                },
+              }),
+        };
       },
     );
   }

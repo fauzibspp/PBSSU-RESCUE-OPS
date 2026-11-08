@@ -817,6 +817,8 @@ describe("M01 privileged MFA lifecycle", () => {
           "createIncident",
           "updateIncident",
           "transitionIncident",
+          "listLocations",
+          "createLocation",
         ],
       ],
     );
@@ -828,12 +830,22 @@ describe("M01 privileged MFA lifecycle", () => {
       },
       {
         role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
         permission_code: "getIncident",
         resource_scope: "TENANT",
       },
       {
         role_code: "CONTROL_ROOM_OPERATOR",
         permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listLocations",
         resource_scope: "TENANT",
       },
       {
@@ -854,6 +866,11 @@ describe("M01 privileged MFA lifecycle", () => {
       {
         role_code: "FIELD_RESPONDER",
         permission_code: "listIncidents",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listLocations",
         resource_scope: "ASSIGNED",
       },
       {
@@ -863,12 +880,22 @@ describe("M01 privileged MFA lifecycle", () => {
       },
       {
         role_code: "INCIDENT_COMMANDER",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
         permission_code: "getIncident",
         resource_scope: "TENANT",
       },
       {
         role_code: "INCIDENT_COMMANDER",
         permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listLocations",
         resource_scope: "TENANT",
       },
       {
@@ -892,6 +919,11 @@ describe("M01 privileged MFA lifecycle", () => {
         resource_scope: "TENANT",
       },
       {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
         role_code: "READ_ONLY_AUDITOR",
         permission_code: "getIncident",
         resource_scope: "TENANT",
@@ -899,6 +931,11 @@ describe("M01 privileged MFA lifecycle", () => {
       {
         role_code: "READ_ONLY_AUDITOR",
         permission_code: "listIncidents",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listLocations",
         resource_scope: "TENANT",
       },
     ]);

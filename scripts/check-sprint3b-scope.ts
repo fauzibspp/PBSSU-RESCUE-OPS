@@ -31,6 +31,10 @@ const permissionMigration = readFileSync(
   new URL("apps/api/src/database/migrations/005-incident-permissions.ts", root),
   "utf8",
 );
+const locationPermissionMigration = readFileSync(
+  new URL("apps/api/src/database/migrations/007-location-permissions.ts", root),
+  "utf8",
+);
 const auditMigration = readFileSync(
   new URL(
     "apps/api/src/database/migrations/006-protected-cancellation-audit.ts",
@@ -65,11 +69,16 @@ assert.deepEqual(
 );
 assert.equal(
   (controller.match(/@(?:Get|Post|Patch)\("\/incidents/g) ?? []).length,
-  5,
+  7,
 );
+assert.match(controller, /listLocations\(/);
+assert.match(controller, /createLocation\(/);
+assert.match(locationPermissionMigration, /"listLocations"/);
+assert.match(locationPermissionMigration, /"createLocation"/);
+assert.doesNotMatch(locationPermissionMigration, /create\s+table/i);
 assert.match(auditMigration, /A256GCM/);
 assert.match(auditMigration, /audit_logs_metadata_check/);
 assert.doesNotMatch(auditMigration, /create\s+table/i);
 process.stdout.write(
-  "Sprint 3-B scope: 5 permission keys, 5 incident operations, no API/table expansion, frozen 75-operation contract unchanged.\n",
+  "Sprint 3-B/C cumulative scope: all 7 frozen Sprint 3 operations; exactly five incident keys and two location keys; no API/table expansion, frozen 75-operation contract unchanged.\n",
 );

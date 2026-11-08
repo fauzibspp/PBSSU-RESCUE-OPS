@@ -1,0 +1,12 @@
+{
+  "purpose": "Tracks the owner-authorized Sprint 3-C implementation documentation delta separately from frozen contract and Sprint 3-B fingerprints.",
+  "authorization_date": "2026-11-08",
+  "scope": "Local implementation evidence for the two frozen location operations and their approved G-04/G-05 mappings.",
+  "files": {
+    "docs/architecture/DATA-DICTIONARY.md": "bf2fcd68beb43d0ea3a22e1458f9a503efab19081a8ec6f3f62a70e498b68dd1",
+    "docs/architecture/DATABASE-SCHEMA.md": "6eb7c2172df9ed0df4d871e99a93df76191157c78980da8881d6e736e3d0480a",
+    "docs/planning/DECISION-REGISTER.md": "6f3cddc00f7626a11ca64b312118f38c87a225f49b9f41161e543502e795c5af",
+    "docs/security/AUTHORIZATION-MODEL.md": "ce164423ea1067958aa7069769d6fd6b9f2686679a3ccd92365fd6a4ab2fddd3",
+    "docs/testing/TEST-STRATEGY.md": "c570569256a05d5bf76fd7af2445158997d4ef17a74cb2ec7f69e6a88e271d34"
+  }
+}

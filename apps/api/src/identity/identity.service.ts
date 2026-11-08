@@ -411,6 +411,45 @@ export class IdentityService implements OnModuleDestroy {
           );
         }
       }
+      const locationGrants = await connection.query<{
+        id: string;
+        code: string;
+        valid_scopes: string[];
+      }>(
+        "select id,code,valid_scopes from app.permissions where code=any($1::text[]) and domain='TENANT'",
+        [["listLocations", "createLocation"]],
+      );
+      if (locationGrants.rows.length !== 2)
+        throw new Error("Location permission catalogue incomplete");
+      for (const roleCode of ["CONTROL_ROOM_OPERATOR", "INCIDENT_COMMANDER"]) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved location role missing");
+        for (const grant of locationGrants.rows) {
+          if (!grant.valid_scopes.includes("TENANT"))
+            throw new Error("Invalid location permission scope");
+          await connection.query(
+            "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,'TENANT')",
+            [orgId, roleId, grant.id],
+          );
+        }
+      }
+      const locationRead = locationGrants.rows.find(
+        (grant) => grant.code === "listLocations",
+      );
+      if (!locationRead?.valid_scopes.includes("ASSIGNED"))
+        throw new Error("Responder location read scope missing");
+      for (const [roleCode, scope] of [
+        ["ORGANIZATION_ADMIN", "TENANT"],
+        ["FIELD_RESPONDER", "ASSIGNED"],
+        ["READ_ONLY_AUDITOR", "TENANT"],
+      ] as const) {
+        const roleId = templateIds.get(roleCode);
+        if (!roleId) throw new Error("Approved location read role missing");
+        await connection.query(
+          "insert into app.role_permissions (organization_id,role_id,permission_id,resource_scope) values($1,$2,$3,$4)",
+          [orgId, roleId, locationRead.id, scope],
+        );
+      }
       const settingsId = randomUUID();
       await connection.query(
         "insert into app.organization_settings (id,organization_id,key,value) values($1,$2,'primary_language','ms')",

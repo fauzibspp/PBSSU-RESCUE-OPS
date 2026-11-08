@@ -67,6 +67,10 @@ The key file at `%LOCALAPPDATA%\PBSSU-RESCUE-OPS\sprint3b-identity-keys.json` is
 
 Cancellation reasons are never stored in plaintext in incidents, change events, or audit metadata and are not decrypted by generic list/get operations. The current API does not return the stored reason; authorized retrieval, including the deferred Auditor view, remains a follow-up contract/design dependency. Reasons remain absent from generic logs, telemetry, unauthorized notifications, and error responses. M01-R01, Q-05, Q-06, and Q-08 remain OPEN.
 
+## Sprint 3-C local implementation record (2026-11-08)
+
+Under separate Project Owner authorization, Sprint 3-C implements only the remaining frozen operations `listLocations` and `createLocation`. Forward-only migration `007-location-permissions` adds those two approved operation permission keys and exact G-04/G-05 role-scope grants; no new table, API operation, or permission beyond the frozen seven-operation Sprint 3 inventory was introduced. Creation requires parent `base_version`, atomically increments it once, writes an immutable logical-version-1 location, LOCATION_CREATED event, and redacted audit record. Responder ASSIGNED reads remain fail closed without Sprint 4 assignment evidence. See [Sprint 3-C validation](../testing/SPRINT-3C-LOCATION-VALIDATION.md) and [completion report](SPRINT-3C-COMPLETION-REPORT.md) for actual test evidence and limitations.
+
 ## M01 implementation risk
 
 | ID | Status | Finding / recommendation | Acceptance gate |

@@ -37,13 +37,16 @@ const org = randomUUID(),
   foreignOrg = randomUUID(),
   userCommander = randomUUID(),
   userOperator = randomUUID(),
-  userOther = randomUUID();
+  userOther = randomUUID(),
+  userResponder = randomUUID();
 const membershipCommander = randomUUID(),
   membershipOperator = randomUUID(),
   membershipOther = randomUUID(),
   roleCommander = randomUUID(),
   roleOperator = randomUUID(),
-  roleOther = randomUUID();
+  roleOther = randomUUID(),
+  membershipResponder = randomUUID(),
+  roleResponder = randomUUID();
 const owner = connectDatabase(state.ownerUrl, 2);
 const runtime = connectDatabase(state.runtimeUrl, 2);
 const ownerPool = new Pool({ connectionString: state.ownerUrl, max: 1 });
@@ -51,6 +54,7 @@ const actorTokens = new Map([
   ["commander", userCommander],
   ["operator", userOperator],
   ["other", userOther],
+  ["responder", userResponder],
 ]);
 const identityStub = {
   authenticateAccessToken: async (token: string) => ({
@@ -62,7 +66,7 @@ const service = new IncidentService(identityStub);
 
 beforeAll(async () => {
   await ownerPool.query(
-    "insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status) values ($1,$2,'synthetic',now(),'ACTIVE'),($3,$4,'synthetic',now(),'ACTIVE'),($5,$6,'synthetic',now(),'ACTIVE')",
+    "insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status) values ($1,$2,'synthetic',now(),'ACTIVE'),($3,$4,'synthetic',now(),'ACTIVE'),($5,$6,'synthetic',now(),'ACTIVE'),($7,$8,'synthetic',now(),'ACTIVE')",
     [
       userCommander,
       `${userCommander}@example.invalid`,
@@ -70,6 +74,8 @@ beforeAll(async () => {
       `${userOperator}@example.invalid`,
       userOther,
       `${userOther}@example.invalid`,
+      userResponder,
+      `${userResponder}@example.invalid`,
     ],
   );
   await ownerPool.query(
@@ -90,6 +96,16 @@ beforeAll(async () => {
     await sql`insert into app.membership_roles(organization_id,membership_id,role_id) values(${org},${membershipCommander},${roleCommander}),(${org},${membershipOperator},${roleOperator})`.execute(
       tx,
     );
+    await sql`insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+      values(${membershipResponder},${org},${userResponder},'Synthetic Responder','ACTIVE',now())`.execute(
+      tx,
+    );
+    await sql`insert into app.roles(id,organization_id,code,name)
+      values(${roleResponder},${org},'FIELD_RESPONDER','Synthetic Responder')`.execute(
+      tx,
+    );
+    await sql`insert into app.membership_roles(organization_id,membership_id,role_id)
+      values(${org},${membershipResponder},${roleResponder})`.execute(tx);
     for (const [role, codes] of [
       [
         roleCommander,
@@ -99,6 +115,8 @@ beforeAll(async () => {
           "createIncident",
           "updateIncident",
           "transitionIncident",
+          "listLocations",
+          "createLocation",
         ],
       ],
       [
@@ -109,6 +127,8 @@ beforeAll(async () => {
           "createIncident",
           "updateIncident",
           "transitionIncident",
+          "listLocations",
+          "createLocation",
         ],
       ],
     ] as const) {
@@ -118,12 +138,23 @@ beforeAll(async () => {
       }>`select id,code from app.permissions where code=any(${codes})`.execute(
         tx,
       );
-      expect(grants.rows).toHaveLength(5);
+      expect(grants.rows).toHaveLength(7);
       for (const grant of grants.rows)
         await sql`insert into app.role_permissions(organization_id,role_id,permission_id,resource_scope) values(${org},${role},${grant.id},'TENANT')`.execute(
           tx,
         );
     }
+    const locationPermissions = await sql<{ id: string; code: string }>`
+      select id,code from app.permissions where code in ('listLocations','createLocation')
+    `.execute(tx);
+    expect(locationPermissions.rows).toHaveLength(2);
+    const responderRead = locationPermissions.rows.find(
+      (permission) => permission.code === "listLocations",
+    )!;
+    await sql`insert into app.role_permissions(organization_id,role_id,permission_id,resource_scope)
+      values(${org},${roleResponder},${responderRead.id},'ASSIGNED')`.execute(
+      tx,
+    );
   });
   await tenantTransaction(owner, foreignOrg, userOther, async (tx) => {
     await sql`insert into app.organizations(id,slug,name,status) values(${foreignOrg},${`foreign-${foreignOrg}`},'Synthetic Foreign Tenant','ACTIVE')`.execute(
@@ -140,7 +171,7 @@ beforeAll(async () => {
     );
     const grants = await sql<{
       id: string;
-    }>`select id from app.permissions where code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident')`.execute(
+    }>`select id from app.permissions where code in ('listIncidents','getIncident','createIncident','updateIncident','transitionIncident','listLocations','createLocation')`.execute(
       tx,
     );
     for (const grant of grants.rows)
@@ -429,5 +460,416 @@ describe("Sprint 3-B incident operations (restricted PostgreSQL role)", () => {
           ),
         ),
       ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("creates and lists redacted locations with parent CAS and atomic evidence", async () => {
+    const incident = (await service.createIncident("commander", org, {
+      title: "Synthetic location parent",
+      category: "FLOOD_MONITORING",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const created = (await service.createLocation(
+      "commander",
+      org,
+      incident.id,
+      {
+        base_version: incident.version,
+        label: "Synthetic monitoring point",
+        point: { longitude: 101.6869, latitude: 3.139, accuracy_m: 8.5 },
+        description: "Synthetic internal note omitted from projection",
+      },
+    )) as Record<string, unknown>;
+    expect(created).toMatchObject({
+      version: 1,
+      organization_id: org,
+      incident_id: incident.id,
+      label: "Synthetic monitoring point",
+      point: { longitude: 101.6869, latitude: 3.139, accuracy_m: 8.5 },
+    });
+    expect(created).not.toHaveProperty("description");
+    const current = (await service.getIncident(
+      "commander",
+      org,
+      incident.id,
+    )) as { version: number };
+    expect(current.version).toBe(incident.version + 1);
+    const page = (await service.listLocations(
+      "commander",
+      org,
+      incident.id,
+    )) as { items: Array<Record<string, unknown>>; next_cursor: null };
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({ id: created.id, version: 1 });
+    expect(page.items[0]).not.toHaveProperty("description");
+    const evidence = await tenantTransaction(
+      runtime,
+      org,
+      userCommander,
+      (tx) =>
+        sql<{
+          event_kind: string;
+          entity_type: string;
+          entity_version: number;
+          location_events: number;
+          location_audits: number;
+          parent_version: number;
+        }>`
+        select
+          (select event_kind from app.change_events
+            where organization_id=${org} and location_id=${String(created.id)} and entity_type='INCIDENT_LOCATION') as event_kind,
+          (select entity_type from app.change_events
+            where organization_id=${org} and location_id=${String(created.id)} and entity_type='INCIDENT_LOCATION') as entity_type,
+          (select entity_version from app.change_events
+            where organization_id=${org} and location_id=${String(created.id)} and entity_type='INCIDENT_LOCATION') as entity_version,
+          (select count(*)::int from app.change_events
+            where organization_id=${org} and incident_id=${incident.id}
+              and location_id=${String(created.id)} and event_kind='LOCATION_CREATED') as location_events,
+          (select count(*)::int from app.audit_logs
+            where organization_id=${org} and resource_id=${String(created.id)} and action='createLocation') as location_audits,
+          (select version from app.incidents where organization_id=${org} and id=${incident.id}) as parent_version
+      `.execute(tx),
+    );
+    expect(evidence.rows[0]).toEqual({
+      event_kind: "LOCATION_CREATED",
+      entity_type: "INCIDENT_LOCATION",
+      entity_version: 1,
+      location_events: 1,
+      location_audits: 1,
+      parent_version: incident.version + 1,
+    });
+  });
+
+  it("rejects invalid location fields and stale parent versions without writes", async () => {
+    const incident = (await service.createIncident("commander", org, {
+      title: "Synthetic validation parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    await expect(
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Invalid coordinate",
+        point: { longitude: 181, latitude: 10, accuracy_m: 3 },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Missing accuracy",
+        point: { longitude: 101, latitude: 3 },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Stale version",
+        description: "Synthetic stale write",
+        unexpected: "rejected",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    const good = (await service.createLocation("commander", org, incident.id, {
+      base_version: incident.version,
+      label: "Valid point without coordinates",
+    })) as { id: string };
+    await expect(
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Stale location",
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: "STALE_VERSION",
+        current_version: incident.version + 1,
+      },
+    });
+    const listed = (await service.listLocations(
+      "commander",
+      org,
+      incident.id,
+    )) as { items: Array<{ id: string }> };
+    expect(listed.items.map((item) => item.id)).toEqual([good.id]);
+  });
+
+  it("serializes concurrent location creation and keeps incident updates in the same version stream", async () => {
+    const incident = (await service.createIncident("commander", org, {
+      title: "Synthetic concurrent location parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const results = await Promise.allSettled([
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Concurrent location A",
+      }),
+      service.createLocation("commander", org, incident.id, {
+        base_version: incident.version,
+        label: "Concurrent location B",
+      }),
+    ]);
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected?.status).toBe("rejected");
+    if (rejected?.status === "rejected")
+      expect(rejected.reason).toMatchObject({
+        response: {
+          code: "STALE_VERSION",
+          current_version: incident.version + 1,
+        },
+      });
+    const changed = (await service.getIncident(
+      "commander",
+      org,
+      incident.id,
+    )) as {
+      version: number;
+    };
+    expect(changed.version).toBe(incident.version + 1);
+    const update = (await service.updateIncident(
+      "commander",
+      org,
+      incident.id,
+      {
+        base_version: changed.version,
+        title: "Synthetic updated after location",
+      },
+    )) as { version: number };
+    expect(update.version).toBe(changed.version + 1);
+    await expect(
+      service.updateIncident("commander", org, incident.id, {
+        base_version: incident.version,
+        title: "Stale after location",
+      }),
+    ).rejects.toMatchObject({
+      response: { code: "STALE_VERSION", current_version: update.version },
+    });
+    await expect(
+      service.transitionIncident("commander", org, incident.id, {
+        base_version: incident.version,
+        target: "OPEN",
+        reason: "Synthetic stale transition after location updates",
+      }),
+    ).rejects.toMatchObject({
+      response: { code: "STALE_VERSION", current_version: update.version },
+    });
+  });
+
+  it("paginates locations in deterministic identifier order", async () => {
+    const incident = (await service.createIncident("commander", org, {
+      title: "Synthetic pagination parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    let baseVersion = incident.version;
+    for (const label of ["Pagination A", "Pagination B", "Pagination C"]) {
+      await service.createLocation("commander", org, incident.id, {
+        base_version: baseVersion,
+        label,
+      });
+      baseVersion++;
+    }
+    const first = (await service.listLocations(
+      "commander",
+      org,
+      incident.id,
+      undefined,
+      "1",
+    )) as { items: Array<{ id: string }>; next_cursor: string | null };
+    const second = (await service.listLocations(
+      "commander",
+      org,
+      incident.id,
+      first.next_cursor ?? undefined,
+      "1",
+    )) as { items: Array<{ id: string }>; next_cursor: string | null };
+    const third = (await service.listLocations(
+      "commander",
+      org,
+      incident.id,
+      second.next_cursor ?? undefined,
+      "1",
+    )) as { items: Array<{ id: string }>; next_cursor: string | null };
+    const pageIds = [
+      first.items[0]!.id,
+      second.items[0]!.id,
+      third.items[0]!.id,
+    ];
+    expect(first.items).toHaveLength(1);
+    expect(second.items).toHaveLength(1);
+    expect(third.items).toHaveLength(1);
+    expect(third.next_cursor).toBeNull();
+    expect(pageIds).toEqual([...pageIds].sort());
+    expect(new Set(pageIds).size).toBe(3);
+  });
+
+  it("rejects location mutation after cancellation or closure", async () => {
+    const cancelled = (await service.createIncident("commander", org, {
+      title: "Synthetic cancelled parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const cancelledResult = (await service.transitionIncident(
+      "commander",
+      org,
+      cancelled.id,
+      {
+        base_version: cancelled.version,
+        target: "CANCELLED",
+        reason: "Synthetic terminal-state test",
+      },
+    )) as { version: number };
+    await expect(
+      service.createLocation("commander", org, cancelled.id, {
+        base_version: cancelledResult.version,
+        label: "Rejected after cancellation",
+      }),
+    ).rejects.toMatchObject({ response: { code: "INVALID_TRANSITION" } });
+
+    const closed = (await service.createIncident("commander", org, {
+      title: "Synthetic closed parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    await tenantTransaction(owner, org, userCommander, (tx) =>
+      sql`update app.incidents set status='CLOSED'
+        where organization_id=${org} and id=${closed.id}`.execute(tx),
+    );
+    await expect(
+      service.createLocation("commander", org, closed.id, {
+        base_version: closed.version,
+        label: "Rejected after closure",
+      }),
+    ).rejects.toMatchObject({ response: { code: "INVALID_TRANSITION" } });
+  });
+
+  it("fails closed for responder and cross-tenant location access", async () => {
+    const foreignIncident = (await service.createIncident("other", foreignOrg, {
+      title: "Synthetic foreign location parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    const foreignLocation = (await service.createLocation(
+      "other",
+      foreignOrg,
+      foreignIncident.id,
+      {
+        base_version: foreignIncident.version,
+        label: "Foreign synthetic location",
+      },
+    )) as { id: string };
+    await expect(
+      service.listLocations("commander", org, foreignIncident.id),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.listLocations("other", foreignOrg, foreignIncident.id),
+    ).resolves.toMatchObject({ items: [{ id: foreignLocation.id }] });
+    await expect(
+      service.listLocations("responder", org, foreignIncident.id),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.createLocation("responder", org, foreignIncident.id, {
+        base_version: 1,
+        label: "Unauthorized location",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      service.listLocations("commander", foreignOrg, foreignIncident.id),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      service.listLocations("other", org, foreignIncident.id),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(foreignLocation.id).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("rolls back location, parent version, event, and audit on event or audit failure", async () => {
+    const incident = (await service.createIncident("commander", org, {
+      title: "Synthetic rollback parent",
+      category: "OTHER",
+      occurred_at: "2026-11-05T08:00:00Z",
+      source_kind: "TEST",
+    })) as { id: string; version: number };
+    await ownerPool.query(`
+      create or replace function app.sprint3c_test_fail_insert() returns trigger
+      language plpgsql as $$ begin raise exception 'synthetic injected failure'; end $$
+    `);
+    const auditCountBeforeResult = await tenantTransaction(
+      runtime,
+      org,
+      userCommander,
+      (tx) =>
+        sql<{
+          count: string;
+        }>`select count(*)::text as count from app.audit_logs
+          where organization_id=${org} and action='createLocation'`.execute(tx),
+    );
+    const auditCountBefore = Number(auditCountBeforeResult.rows[0]?.count);
+    try {
+      for (const [table, triggerName] of [
+        ["change_events", "sprint3c_test_fail_event"],
+        ["audit_logs", "sprint3c_test_fail_audit"],
+      ] as const) {
+        await ownerPool.query(
+          table === "audit_logs"
+            ? `
+              create trigger ${triggerName} before insert on app.audit_logs
+              for each row when (new.action = 'createLocation')
+              execute function app.sprint3c_test_fail_insert()
+            `
+            : `
+            create trigger ${triggerName} before insert on app.${table}
+            for each row execute function app.sprint3c_test_fail_insert()
+            `,
+        );
+        await expect(
+          service.createLocation("commander", org, incident.id, {
+            base_version: incident.version,
+            label: `Injected ${table} failure`,
+          }),
+        ).rejects.toThrow();
+        await ownerPool.query(`drop trigger ${triggerName} on app.${table}`);
+        const check = await tenantTransaction(
+          runtime,
+          org,
+          userCommander,
+          (tx) =>
+            sql<{
+              version: number;
+              locations: number;
+              events: number;
+              audits: number;
+            }>`
+            select
+              (select version from app.incidents where organization_id=${org} and id=${incident.id}) as version,
+              (select count(*)::int from app.incident_locations where organization_id=${org} and incident_id=${incident.id}) as locations,
+              (select count(*)::int from app.change_events where organization_id=${org} and incident_id=${incident.id} and event_kind='LOCATION_CREATED') as events,
+              (select count(*)::int from app.audit_logs where organization_id=${org} and action='createLocation') as audits
+          `.execute(tx),
+        );
+        expect(check.rows[0]).toEqual({
+          version: incident.version,
+          locations: 0,
+          events: 0,
+          audits: auditCountBefore,
+        });
+      }
+    } finally {
+      await ownerPool.query(
+        "drop trigger if exists sprint3c_test_fail_event on app.change_events",
+      );
+      await ownerPool.query(
+        "drop trigger if exists sprint3c_test_fail_audit on app.audit_logs",
+      );
+      await ownerPool.query(
+        "drop function if exists app.sprint3c_test_fail_insert()",
+      );
+    }
   });
 });

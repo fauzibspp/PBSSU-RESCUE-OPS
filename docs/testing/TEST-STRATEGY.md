@@ -58,6 +58,8 @@ Sprint 3-B execution adds restricted-role PostgreSQL coverage for exact incident
 
 ## Release gates and evidence
 
+Sprint 3-C location tests cover list/create permissions and scopes, responder/platform fail-closed behavior, same-tenant parent lookup, coordinate and field validation, deterministic cursor ordering, immutable location version 1, parent incident compare-and-swap, stale and concurrent create conflicts, cross-tenant concealment, terminal incident guards, event/audit atomicity and rollback on injected event/audit failures. Run these with PostgreSQL under the restricted runtime role; mocks alone do not establish RLS or transaction behavior.
+
 Each feature must link requirement → operation/entity → named test → execution result. Store command, environment, date, counts and failure details; never label a planned test passed. CI adds lint/type checks, unit/integration/contract tests and frontend/mobile checks as applications exist. Migration verification includes fresh DB and upgrade from prior approved schema. API security matrix must grow with each endpoint.
 
 Pilot gate: all required tests executed, no unresolved critical/high tenant or privacy vulnerabilities, medium residual risk accepted by named owners, restore exercise completed, approved data/operational policies and UAT sign-off. Production deployment remains separately authorized.

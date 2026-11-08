@@ -63,6 +63,15 @@ const sprint3BDocumentationDelta = JSON.parse(
     "utf8",
   ),
 ) as { files: Record<string, string> };
+const sprint3CDocumentationDelta = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../docs/testing/SPRINT-3C-DOCUMENTATION-DELTA.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
 const controllerSources = [
   readFileSync(
     new URL("apps/api/src/identity/identity.controller.ts", root),
@@ -175,6 +184,11 @@ describe("approved M01 contract boundary", () => {
         expect(
           sprint3ContractDelta.files[path],
           `${path} approved Sprint 3 contract freeze`,
+        ).toBe(actual);
+      } else if (path in sprint3CDocumentationDelta.files) {
+        expect(
+          sprint3CDocumentationDelta.files[path],
+          `${path} authorized Sprint 3-C documentation delta`,
         ).toBe(actual);
       } else if (path in sprint3BDocumentationDelta.files) {
         expect(

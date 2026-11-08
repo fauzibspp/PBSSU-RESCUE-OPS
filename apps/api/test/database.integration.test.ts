@@ -9,6 +9,7 @@ import {
   type Database,
 } from "../src/database/connection.js";
 import * as incidentPermissions from "../src/database/migrations/005-incident-permissions.js";
+import * as locationPermissions from "../src/database/migrations/007-location-permissions.js";
 
 interface DevelopmentDatabaseState {
   ownerUrl: string;
@@ -235,6 +236,7 @@ describe("M01 PostgreSQL foundation", () => {
       "004-incidents",
       "005-incident-permissions",
       "006-protected-cancellation-audit",
+      "007-location-permissions",
     ]);
     expect(new Set(policies.rows.map((row) => row.table_name))).toEqual(
       new Set([
@@ -268,6 +270,8 @@ describe("M01 PostgreSQL foundation", () => {
       "getIncident",
       "updateIncident",
       "transitionIncident",
+      "listLocations",
+      "createLocation",
     ]);
     expect(codes.size).toBe(expectedCodes.size);
     expect([...expectedCodes].every((code) => codes.has(code))).toBe(true);
@@ -308,6 +312,7 @@ describe("M01 PostgreSQL foundation", () => {
       }
     });
     await owner.transaction().execute((tx) => incidentPermissions.up(tx));
+    await owner.transaction().execute((tx) => locationPermissions.up(tx));
     const alpha = await tenantTransaction(owner, tenantA, userA, (tx) =>
       sql<{
         role_code: string;
@@ -362,6 +367,75 @@ describe("M01 PostgreSQL foundation", () => {
     expect(rows.some((row) => row.role_code === "PLATFORM_SUPER_ADMIN")).toBe(
       false,
     );
+    const locationRows = await tenantTransaction(owner, tenantA, userA, (tx) =>
+      sql<{
+        role_code: string;
+        permission_code: string;
+        resource_scope: string;
+      }>`
+        select r.code role_code,p.code permission_code,rp.resource_scope
+        from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+        join app.permissions p on p.id=rp.permission_id
+        where rp.organization_id=${tenantA} and p.code in ('listLocations','createLocation')
+        order by r.code,p.code
+      `.execute(tx),
+    );
+    expect(locationRows.rows).toEqual([
+      {
+        role_code: "FIELD_RESPONDER",
+        permission_code: "listLocations",
+        resource_scope: "ASSIGNED",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "INCIDENT_COMMANDER",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "ORGANIZATION_ADMIN",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "READ_ONLY_AUDITOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
+    const operatorLocationRows = await tenantTransaction(
+      owner,
+      tenantB,
+      userB,
+      (tx) =>
+        sql<{
+          role_code: string;
+          permission_code: string;
+          resource_scope: string;
+        }>`
+          select r.code role_code,p.code permission_code,rp.resource_scope
+          from app.role_permissions rp join app.roles r on r.organization_id=rp.organization_id and r.id=rp.role_id
+          join app.permissions p on p.id=rp.permission_id
+          where rp.organization_id=${tenantB} and p.code in ('listLocations','createLocation')
+          order by r.code,p.code
+        `.execute(tx),
+    );
+    expect(operatorLocationRows.rows).toEqual([
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "createLocation",
+        resource_scope: "TENANT",
+      },
+      {
+        role_code: "CONTROL_ROOM_OPERATOR",
+        permission_code: "listLocations",
+        resource_scope: "TENANT",
+      },
+    ]);
     expect(
       rows
         .filter((row) => row.role_code === "CONTROL_ROOM_OPERATOR")

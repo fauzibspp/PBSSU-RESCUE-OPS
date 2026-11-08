@@ -73,4 +73,25 @@ export class IncidentController {
   ) {
     return this.incidents.transitionIncident(bearer(auth), org, id, body);
   }
+
+  @Get("/incidents/:incidentId/locations")
+  listLocations(
+    @Headers("authorization") auth: string | undefined,
+    @Headers("x-organization-id") org: string,
+    @Param("incidentId") id: string,
+    @Query("cursor") cursor?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.incidents.listLocations(bearer(auth), org, id, cursor, limit);
+  }
+
+  @Post("/incidents/:incidentId/locations")
+  createLocation(
+    @Headers("authorization") auth: string | undefined,
+    @Headers("x-organization-id") org: string,
+    @Param("incidentId") id: string,
+    @Body() body: unknown,
+  ) {
+    return this.incidents.createLocation(bearer(auth), org, id, body);
+  }
 }
