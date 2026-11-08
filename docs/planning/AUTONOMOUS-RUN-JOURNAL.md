@@ -91,5 +91,13 @@
 - **Implementation:** Added NestJS `getAssignments` and `setAssignments` routes. Assignment writes enforce exact G-06 permission, active selected-tenant membership with `FIELD_RESPONDER` role, selected-tenant `AVAILABLE` vehicles, incident row lock and `base_version`. Changed replacements increment once; identical sets are no-ops. Explicit pre-dispatch releases preserve history; re-adds create new interval IDs. Audit and assignment mutation are transaction-atomic. Cross-tenant unique violations map to generic conflict without a cross-tenant lookup.
 - **Validation:** focused real HTTP suite PASS (1 file/6 tests); full integration PASS (6 files/42 tests); unit/contract PASS (2 files/19 tests); typecheck, lint, build, formatting, frozen scope inventory and whitespace checks PASS. Details: [Sprint 4-B validation](../testing/SPRINT-4B-ASSIGNMENT-VALIDATION.md).
 - **Scope:** exactly two existing operations; no new table, migration, permission, event schema, or API. No dispatch, movement, terminal release, or vehicle-state guard implemented in this checkpoint.
-- **Checkpoint:** local S4-B commit pending final documentation checks. Root attachments remain untracked and untouched. No push, merge or deployment.
+- **Checkpoint:** committed locally as `376e117ec373cb5f44c56d2bca532cdf0cbcf935` (`feat: implement Sprint 4 assignment operations`). Root attachments remain untracked and untouched. No push, merge or deployment.
 - **Open gates:** M01-R01, Q-05, Q-06, Q-08, production KMS/key lifecycle, production logging and Auditor reason retrieval remain OPEN/deferred.
+
+## Run 2026-11-08 — Sprint 4-C movement API
+
+- **Baseline:** S4-B commit `376e117ec373cb5f44c56d2bca532cdf0cbcf935` on `feat/sprint-4-assignment-movement`.
+- **Implementation:** Added only `listMovements` and `createMovement`, with selected-tenant G-04/G-07 checks, assigned-only responder access, trusted server actor/receipt time, append-only insertion, same-ID replay handling, generic conflicts, deterministic cursor pagination, and `supersedes_id` correction lineage. Notes are excluded from outputs and audit metadata remains empty. ARRIVAL does not change incident status.
+- **Validation:** real HTTP suite and full integration suite PASS (1/6 focused tests and 6 files/42 tests respectively); typecheck, lint, build, format, and exact 75-operation/3-table/4-operation scope check PASS. S4-A tests in the full suite cover RLS and append-only database controls. See [Sprint 4-C validation](../testing/SPRINT-4C-MOVEMENT-VALIDATION.md).
+- **Scope:** no migration, permission, table, or API operation added. Sprint 4-D lifecycle/vehicle guards remain next. No push, merge or deployment.
+- **Checkpoint:** local S4-C commit pending final checks. Root attachments remain untracked and untouched.

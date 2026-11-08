@@ -60,6 +60,7 @@ const platformTotpSecret = new Secret({ size: 20 });
 let app: Awaited<ReturnType<typeof NestFactory.create>>;
 let baseUrl: string;
 let authorization: string;
+let ordinaryAuthorization: string;
 let sessionId: string;
 
 async function selectRole(code: keyof typeof roleIds): Promise<void> {
@@ -301,22 +302,43 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
             "createLocation",
             "getAssignments",
             "setAssignments",
+            "listMovements",
+            "createMovement",
           ],
           "TENANT",
         ],
         [
           "ORGANIZATION_ADMIN",
-          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
+          [
+            "listIncidents",
+            "getIncident",
+            "listLocations",
+            "getAssignments",
+            "listMovements",
+          ],
           "TENANT",
         ],
         [
           "READ_ONLY_AUDITOR",
-          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
+          [
+            "listIncidents",
+            "getIncident",
+            "listLocations",
+            "getAssignments",
+            "listMovements",
+          ],
           "TENANT",
         ],
         [
           "FIELD_RESPONDER",
-          ["listIncidents", "getIncident", "listLocations", "getAssignments"],
+          [
+            "listIncidents",
+            "getIncident",
+            "listLocations",
+            "getAssignments",
+            "listMovements",
+            "createMovement",
+          ],
           "ASSIGNED",
         ],
       ];
@@ -344,6 +366,8 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
             "createLocation",
             "getAssignments",
             "setAssignments",
+            "listMovements",
+            "createMovement",
           ],
         ],
       );
@@ -567,6 +591,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     );
     expect(redeemed.status).toBe(200);
     const session = (await redeemed.json()) as { access_token: string };
+    ordinaryAuthorization = `Bearer ${session.access_token}`;
     const denied = await fetch(`${baseUrl}/incidents`, {
       method: "POST",
       headers: {
@@ -795,7 +820,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     const assignedBody = (await assigned.json()) as {
       version: number;
       personnel: Array<{ membership_id: string; released_at?: string }>;
-      vehicles: Array<{ vehicle_id: string; released_at?: string }>;
+      vehicles: Array<{ id: string; vehicle_id: string; released_at?: string }>;
     };
     expect(assignedBody.version).toBe(openIncident.version + 1);
     expect(assignedBody.personnel).toMatchObject([
@@ -855,6 +880,131 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     expect(conflictText).not.toContain(ordinaryUserId);
     expect(conflictText).not.toContain(incident.id);
     expect(conflictText).not.toContain(assignmentVehicleId);
+
+    const movementId = randomUUID();
+    const movementInput = {
+      id: movementId,
+      incident_vehicle_id: assignedBody.vehicles[0]!.id,
+      kind: "DEPARTURE",
+      occurred_at: "2026-11-05T08:10:00Z",
+      note: "Synthetic movement note must not appear in projection",
+    };
+    const movementCreated = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      { method: "POST", headers, body: JSON.stringify(movementInput) },
+    );
+    expect(movementCreated.status).toBe(201);
+    const movement = (await movementCreated.json()) as {
+      id: string;
+      version: number;
+      actor_membership_id: string;
+      received_at: string;
+    };
+    expect(movement).toMatchObject({
+      id: movementId,
+      version: 1,
+      actor_membership_id: membershipId,
+    });
+    expect(Date.parse(movement.received_at)).toBeGreaterThan(0);
+    expect(JSON.stringify(movement)).not.toContain(movementInput.note);
+    const responderMovement = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          authorization: ordinaryAuthorization,
+        },
+        body: JSON.stringify({
+          id: randomUUID(),
+          incident_vehicle_id: assignedBody.vehicles[0]!.id,
+          kind: "OTHER",
+          occurred_at: "2026-11-05T08:12:00Z",
+        }),
+      },
+    );
+    expect(responderMovement.status).toBe(201);
+    expect((await responderMovement.json()).actor_membership_id).toBe(
+      ordinaryMembershipId,
+    );
+    const responderMovementList = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      { headers: { ...headers, authorization: ordinaryAuthorization } },
+    );
+    expect(responderMovementList.status).toBe(200);
+    expect(await responderMovementList.text()).not.toContain(
+      movementInput.note,
+    );
+    const noAuthMovementList = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+    );
+    expect(noAuthMovementList.status).toBe(401);
+    const crossTenantMovementList = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      {
+        headers: { ...headers, "x-organization-id": secondOrganizationId },
+      },
+    );
+    expect([403, 404]).toContain(crossTenantMovementList.status);
+    const replayedMovement = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      { method: "POST", headers, body: JSON.stringify(movementInput) },
+    );
+    expect(replayedMovement.status).toBe(201);
+    expect((await replayedMovement.json()).id).toBe(movementId);
+    const conflictingReplay = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...movementInput, kind: "RETURN" }),
+      },
+    );
+    expect(conflictingReplay.status).toBe(409);
+    expect(await conflictingReplay.text()).not.toContain(movementId);
+    const correctionId = randomUUID();
+    const correction = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          id: correctionId,
+          incident_vehicle_id: assignedBody.vehicles[0]!.id,
+          kind: "ARRIVAL",
+          occurred_at: "2026-11-05T08:11:00Z",
+          supersedes_id: movementId,
+        }),
+      },
+    );
+    expect(correction.status).toBe(201);
+    expect(await correction.json()).toMatchObject({
+      id: correctionId,
+      supersedes_id: movementId,
+    });
+    const incidentAfterArrival = await fetch(
+      `${baseUrl}/incidents/${incident.id}`,
+      { headers },
+    );
+    expect((await incidentAfterArrival.json()).status).toBe("OPEN");
+    const movementPage = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements?limit=1`,
+      { headers },
+    );
+    expect(movementPage.status).toBe(200);
+    const movementPageBody = (await movementPage.json()) as {
+      items: Array<Record<string, unknown>>;
+      next_cursor: string | null;
+    };
+    expect(movementPageBody.items).toHaveLength(1);
+    expect(movementPageBody.next_cursor).not.toBeNull();
+    expect(JSON.stringify(movementPageBody)).not.toContain(movementInput.note);
+    const secondMovementPage = await fetch(
+      `${baseUrl}/incidents/${incident.id}/movements?limit=1&cursor=${encodeURIComponent(movementPageBody.next_cursor!)}`,
+      { headers },
+    );
+    expect(secondMovementPage.status).toBe(200);
+    expect((await secondMovementPage.json()).items).toHaveLength(1);
 
     await selectRole("ORGANIZATION_ADMIN");
     expect((await fetch(assignmentPath, { headers })).status).toBe(200);
