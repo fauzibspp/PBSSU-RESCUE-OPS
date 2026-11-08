@@ -1,61 +1,6 @@
 {
   "proposal_id": "PBSSU-UI-FOUNDATION-01",
-  "status": "PROPOSED_NOT_APPROVED",
+  "status": "SUPERSEDED_BY_VERSIONED_PROPOSAL",
   "implementation_authorized": false,
-  "contract_baseline": "approved OpenAPI 3.1 contract; 75 operation IDs",
-  "scope": {
-    "existing_operations": [
-      "login",
-      "verifyMfa",
-      "redeemCredentialHandoff",
-      "refreshSession",
-      "revokeSession",
-      "listMyMemberships",
-      "listIncidents",
-      "getIncident"
-    ],
-    "proposed_ui_capabilities": [
-      "Email/password login using existing LoginInput",
-      "MFA challenge and TOTP verification using existing contract",
-      "Web session handoff using approved secure cookie behavior",
-      "Membership and selected-organization choice from the current user's memberships",
-      "Authenticated shell with navigation affordances derived from selected membership role codes",
-      "Read-only paginated incident list and incident detail",
-      "Loading, empty, generic error, forbidden, not-found, and expired-session states",
-      "Safe logout and session-expiration recovery",
-      "Synthetic Playwright coverage"
-    ],
-    "incident_projection": [
-      "id",
-      "version",
-      "created_at",
-      "organization_id",
-      "title",
-      "category",
-      "status",
-      "occurred_at",
-      "source_kind"
-    ],
-    "excluded_incident_fields": [
-      "cancellation_reason",
-      "outcome unless separately approved for the read-only projection"
-    ]
-  },
-  "new_api_operations": [],
-  "new_permissions": [],
-  "new_database_entities": [],
-  "security_constraints": [
-    "No credential, access token, refresh token, MFA seed, or recovery code in browser storage, URLs, telemetry, screenshots, or logs",
-    "Cookie session uses documented trusted-origin and CSRF protections",
-    "Every tenant request sends the selected organization as an untrusted selector and relies on backend membership, assurance, permission, and RLS enforcement",
-    "Role-based navigation is presentation only; backend authorization remains authoritative",
-    "No incident creation, editing, transition, assignment, movement, dispatch, GPS, media, or reporting UI"
-  ],
-  "dependencies": [
-    "Review actual WEB cookie/session handoff behavior against existing HTTP tests before implementation",
-    "Preserve the existing 75-operation OpenAPI inventory",
-    "Keep MFA-required role assurance and tenant-only privileged MFA behavior",
-    "Use synthetic accounts and isolated test data only"
-  ],
-  "approval_required_before_implementation": true
+  "canonical_manifest": "UF-01-SCOPE.v1.json"
 }

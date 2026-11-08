@@ -77,7 +77,7 @@ the final authority.
 
 ## Proposed first vertical slice
 
-See [proposed scope manifest](UI-FOUNDATION-SCOPE-PROPOSAL.json) and
+See the versioned [UF-01 scope manifest](UF-01-SCOPE.v1.json) and
 [browser acceptance matrix](../testing/UI-BROWSER-ACCEPTANCE-MATRIX.md).
 The proposal is limited to login/MFA using existing contracts, a shell,
 membership/tenant selection, role-aware navigation, read-only incident list and
@@ -94,3 +94,34 @@ identity, performs a read-only schema inventory check, and only then starts the
 integration suite. It fails closed if the state file is absent, malformed,
 external, or points to an unexpected schema. It does not create, migrate,
 reset, or delete any database.
+
+## GitHub integration readiness
+
+PR #4 currently has no submitted reviews or inline review threads. GitHub
+reports `mergeable: true`, but this is not a substitute for review or CI: its
+combined status response contains no checks and its workflow-run lookup
+contains no runs. The current PR base SHA is `4d64be934497a4d004a9d1860bb3220a07450fee`;
+the accepted Sprint 4 head is not in `origin/main` while the PR is open.
+No code or PR metadata was changed during this review.
+
+Recommended bounded pull-request CI (proposal only):
+
+1. Trigger on `pull_request` to `main`; grant only `contents: read`, with no
+   deployment environment, production secrets, or write token.
+2. Install the lockfile on a pinned Node 24 runner and run unit/contract tests,
+   all existing scope checks, lint, typecheck, API build, and web build.
+3. Run database integration in an ephemeral job with the pinned
+   `postgis/postgis:18-3.7` digest from `infra/versions.json`, loopback-only
+   binding, synthetic random credentials, no production secrets, and a unique
+   `sprint4a` database/state file. Apply the existing migrations and run the
+   guarded integration launcher; do not persist the database or credentials.
+4. Publish only sanitized test summaries and synthetic browser screenshots.
+   Never upload auth traces, headers, request bodies, database state files, or
+   credentials. Do not use `pull_request_target` to execute untrusted code.
+5. Require an independent human review and successful CI checks through
+   repository branch-protection settings before merge. Those settings are not
+   confirmed by the available PR metadata and must be checked by a maintainer.
+
+This recommendation does not create or enable a workflow. The Sprint 4 PR
+should first receive owner/reviewer assessment; do not merge it based solely on
+GitHub's mergeable flag.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-08
 **Branch/base:** `chore/visual-development-workflow` at
-`15735dd7249cdb6ef92545f7f21159c0c5bf881e` before this change.
+`bd3229c2da9f8c33c4c63495b440bb571da5695c` before this documentation update.
 
 ## Baseline evidence
 
@@ -12,6 +12,9 @@
   [PR #4](https://github.com/fauzibspp/PBSSU-RESCUE-OPS/pull/4) was not
   modified. The connected GitHub view returned no combined status checks or
   workflow run records; no CI status is claimed.
+- The visual workflow branch contains the prior accepted visual tooling and
+  diagnostics commit. The two known unrelated root attachments remain
+  untracked, untouched, and unstaged.
 - The working tree initially contained only the two known unrelated,
   untracked root attachments. They were not edited, staged, or removed.
 - `apps/web` currently contains only a React/Vite developer preview. No router,
@@ -28,18 +31,18 @@
 
 ## Changes and executed validation
 
-| Command / check                                                                            | Result                                                                                                                                                                                         |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test -- --run`                                                                        | PASS: 3 files, 27 tests, including eight synthetic integration-launcher state validation cases plus existing unit/contract tests.                                                              |
-| `$env:PBSSU_TEST_DATABASE_STATE='.cache/sprint4a/database.json'; npm run test:integration` | PASS: read-only launcher preflight matched isolated loopback DB, PostgreSQL 18, PostGIS 3.7, 29 application tables, 54 permission keys and migrations 001–009; 6 files, 42 tests passed.       |
-| `$env:PBSSU_TEST_DATABASE_STATE=$null; npm run test:integration`                           | PASS negative check: exited 1 before Vitest or database connection and requested an isolated state file; no credentials displayed.                                                             |
-| `$env:PBSSU_WEB_PORT='5174'; npm run test:browser:headed`                                  | PASS: 4 Edge tests across desktop and Pixel 7 viewport projects; preview render, diagnostic states, keyboard focus, responsive overflow, console/page errors, failed requests and screenshots. |
-| `npm run lint`                                                                             | PASS.                                                                                                                                                                                          |
-| `npm run typecheck`                                                                        | PASS: API and web.                                                                                                                                                                             |
-| `npm run build`                                                                            | PASS: API.                                                                                                                                                                                     |
-| `npm run build:web`                                                                        | PASS: React/Vite production build.                                                                                                                                                             |
-| `npm run format:check`                                                                     | PASS.                                                                                                                                                                                          |
-| `npm run scope:sprint3a`, `scope:sprint3b`, `scope:sprint3c`, `scope:sprint4a`             | PASS: existing inventories unchanged; Sprint 4 check confirms 75 operation IDs and exact three-table/four-operation inventory.                                                                 |
+| Command / check                                                                            | Result                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test -- --run`                                                                        | PASS: 3 files, 27 tests, including eight synthetic integration-launcher state validation cases plus existing unit/contract tests.                                                                       |
+| `$env:PBSSU_TEST_DATABASE_STATE='.cache/sprint4a/database.json'; npm run test:integration` | PASS: read-only launcher preflight matched isolated loopback DB, PostgreSQL 18, PostGIS 3.7, 29 application tables, 54 permission keys and migrations 001–009; 6 files, 42 tests passed.                |
+| `$env:PBSSU_TEST_DATABASE_STATE=$null; npm run test:integration`                           | PASS negative check: exited 1 before Vitest or database connection and requested an isolated state file; no credentials displayed.                                                                      |
+| `$env:PBSSU_WEB_PORT='5174'; npm run test:browser`                                         | PASS: 4 headless Edge tests across desktop and Pixel 7 viewport projects; preview render, diagnostic states, keyboard focus, responsive overflow, console/page errors, failed requests and screenshots. |
+| `npm run lint`                                                                             | PASS.                                                                                                                                                                                                   |
+| `npm run typecheck`                                                                        | PASS: API and web.                                                                                                                                                                                      |
+| `npm run build`                                                                            | PASS: API.                                                                                                                                                                                              |
+| `npm run build:web`                                                                        | PASS: React/Vite production build.                                                                                                                                                                      |
+| `npm run format:check`                                                                     | PASS.                                                                                                                                                                                                   |
+| `npm run scope:sprint3a`, `scope:sprint3b`, `scope:sprint3c`, `scope:sprint4a`             | PASS: existing inventories unchanged; Sprint 4 check confirms 75 operation IDs and exact three-table/four-operation inventory.                                                                          |
 
 The integration launcher requires `PBSSU_TEST_DATABASE_STATE`, confines it to
 `.cache/sprint4a`, checks the pinned image and exact loopback database URLs,
@@ -60,6 +63,9 @@ The headed suite generated desktop and mobile screenshots under ignored
 is configured for future failures under `test-results/`. Screenshots contain
 only the diagnostic preview and synthetic content.
 
+This review reran the same four browser scenarios headlessly; the previously
+recorded headed Edge run remains the evidence for visible-browser execution.
+
 ## Limitations
 
 - No operational UI scenario was executed because those screens do not exist.
@@ -73,3 +79,25 @@ only the diagnostic preview and synthetic content.
   inventory; no OpenAPI document was changed.
 - No Docker, database lifecycle, API operational behavior, Sprint 4 backend,
   PR, remote branch, or deployment was changed.
+
+## UF-01 proposal and GitHub review gate
+
+The canonical versioned proposal is
+[`UF-01-SCOPE.v1.json`](../planning/UF-01-SCOPE.v1.json), marked
+`PROPOSED_NOT_APPROVED` with implementation unauthorized. Its 10 API references
+were checked against the existing 75-operation OpenAPI inventory; zero new
+operations, permissions, or database entities are proposed. The prior
+unversioned proposal file now points to this canonical manifest.
+
+GitHub PR #4 currently reports open, unmerged, and mergeable. It is not a
+Draft. No submitted reviews, review threads, combined statuses, or Actions
+workflow runs were returned. Its accepted Sprint 4 head is not in `origin/main`
+while open. Branch protection requirements were not exposed and remain for a
+maintainer to verify.
+
+Recommended CI is documented in
+[`UI-FOUNDATION-READINESS.md`](../planning/UI-FOUNDATION-READINESS.md):
+read-only pull-request permissions; Node 24 lockfile install; unit/contract,
+scope, lint, typecheck and builds; ephemeral PostGIS integration using the
+pinned digest and synthetic credentials; sanitized artifacts only; no
+deployment secrets or `pull_request_target`. No workflow was created.
