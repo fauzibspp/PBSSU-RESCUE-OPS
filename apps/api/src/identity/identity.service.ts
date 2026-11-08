@@ -1011,23 +1011,14 @@ export class IdentityService implements OnModuleDestroy {
       if (grantRequirement.rows[0]?.role_count === "0") {
         throw new UnauthorizedException("Invitation unavailable");
       }
-      const currentPrivilege = await connection.query<{ required: boolean }>(
-        `select exists(
-           select 1 from app.platform_grants g join app.permissions p on p.id=g.permission_id
-           where g.user_id=$1 and g.state='ACTIVE' and p.requires_privileged_mfa=true
-           union all
-           select 1 from app.memberships m
-           join app.membership_roles mr on mr.organization_id=m.organization_id and mr.membership_id=m.id
-           join app.role_permissions rp on rp.organization_id=mr.organization_id and rp.role_id=mr.role_id
-           join app.permissions p on p.id=rp.permission_id
-           where m.user_id=$1 and m.status='ACTIVE' and p.requires_privileged_mfa=true
-         ) as required`,
-        [userId],
+      const currentPrivilege = await this.requiresPrivilegedMfaInTransaction(
+        connection,
+        userId,
       );
       const requiredMfa =
         invitation.kind === "FIRST_ADMIN" ||
         grantRequirement.rows[0]?.required === true ||
-        currentPrivilege.rows[0]?.required === true;
+        currentPrivilege;
       const activeFactor = await connection.query(
         "select 1 from app.mfa_credentials where user_id=$1 and state='ACTIVE'",
         [userId],
@@ -1240,23 +1231,14 @@ export class IdentityService implements OnModuleDestroy {
          ) as required`,
         [challenge.invitation_organization_id, challenge.invitation_id],
       );
-      const currentPrivilege = await connection.query<{ required: boolean }>(
-        `select exists(
-           select 1 from app.platform_grants g join app.permissions p on p.id=g.permission_id
-           where g.user_id=$1 and g.state='ACTIVE' and p.requires_privileged_mfa=true
-           union all
-           select 1 from app.memberships m
-           join app.membership_roles mr on mr.organization_id=m.organization_id and mr.membership_id=m.id
-           join app.role_permissions rp on rp.organization_id=mr.organization_id and rp.role_id=mr.role_id
-           join app.permissions p on p.id=rp.permission_id
-           where m.user_id=$1 and m.status='ACTIVE' and p.requires_privileged_mfa=true
-         ) as required`,
-        [challenge.user_id],
+      const currentPrivilege = await this.requiresPrivilegedMfaInTransaction(
+        connection,
+        challenge.user_id,
       );
       const mfaRequired =
         required ||
         privilegedPermission.rows[0]?.required === true ||
-        currentPrivilege.rows[0]?.required === true;
+        currentPrivilege;
       if (
         mfaRequired &&
         (challenge.mfa_verified_at === null ||
@@ -1634,21 +1616,100 @@ export class IdentityService implements OnModuleDestroy {
     }
   }
 
-  private async requiresPrivilegedMfa(userId: string): Promise<boolean> {
-    const result = await this.pool.query<{ required: boolean }>(
-      `select exists(
-         select 1 from app.platform_grants g join app.permissions p on p.id=g.permission_id
-         where g.user_id=$1 and g.state='ACTIVE' and p.requires_privileged_mfa=true
-         union all
-         select 1 from app.memberships m
-         join app.membership_roles mr on mr.organization_id=m.organization_id and mr.membership_id=m.id
-         join app.role_permissions rp on rp.organization_id=mr.organization_id and rp.role_id=mr.role_id
-         join app.permissions p on p.id=rp.permission_id
-         where m.user_id=$1 and m.status='ACTIVE' and p.requires_privileged_mfa=true
-       ) as required`,
-      [userId],
+  private async requiresPrivilegedMfaInTransaction(
+    connection: PoolClient,
+    userId: string,
+  ): Promise<boolean> {
+    const previous = await connection.query<{
+      organization_id: string | null;
+      actor_user_id: string | null;
+    }>(
+      `select nullif(current_setting('app.organization_id',true),'') as organization_id,
+              nullif(current_setting('app.actor_user_id',true),'') as actor_user_id`,
     );
-    return result.rows[0]?.required ?? true;
+    const previousOrganizationId = previous.rows[0]?.organization_id ?? "";
+    const previousActorUserId = previous.rows[0]?.actor_user_id ?? "";
+
+    try {
+      // The identity role may see membership metadata only for this verified
+      // subject. Tenant IDs are derived from those rows, never from the client.
+      await connection.query("select set_config('app.actor_user_id',$1,true)", [
+        userId,
+      ]);
+      const platformGrant = await connection.query<{ required: boolean }>(
+        `select exists(
+           select 1 from app.platform_grants g
+           join app.permissions p on p.id=g.permission_id
+           where g.user_id=$1 and g.state='ACTIVE' and p.requires_privileged_mfa=true
+         ) as required`,
+        [userId],
+      );
+      if (platformGrant.rows[0]?.required !== false) {
+        // Missing result rows are an error-shaped condition, never proof of
+        // an unprivileged identity.
+        if (platformGrant.rows[0]?.required === true) return true;
+        throw new Error("Privilege lookup returned no result");
+      }
+
+      const memberships = await connection.query<{
+        organization_id: string;
+      }>(
+        `select organization_id from app.memberships
+         where user_id=$1 and status='ACTIVE'
+         order by organization_id`,
+        [userId],
+      );
+      for (const membership of memberships.rows) {
+        await connection.query(
+          "select set_config('app.organization_id',$1,true)",
+          [membership.organization_id],
+        );
+        const tenantGrant = await connection.query<{ required: boolean }>(
+          `select exists(
+             select 1 from app.memberships m
+             join app.membership_roles mr
+               on mr.organization_id=m.organization_id and mr.membership_id=m.id
+             join app.role_permissions rp
+               on rp.organization_id=mr.organization_id and rp.role_id=mr.role_id
+             join app.permissions p on p.id=rp.permission_id
+             where m.user_id=$1 and m.organization_id=$2 and m.status='ACTIVE'
+               and p.requires_privileged_mfa=true
+           ) as required`,
+          [userId, membership.organization_id],
+        );
+        if (tenantGrant.rows[0]?.required === true) return true;
+        if (tenantGrant.rows[0]?.required !== false) {
+          throw new Error("Tenant privilege lookup returned no result");
+        }
+      }
+      return false;
+    } finally {
+      // Callers may be in a larger invitation transaction. Restore its prior
+      // tenant and subject context before returning to that operation.
+      await connection.query(
+        `select set_config('app.organization_id',$1,true),
+                set_config('app.actor_user_id',$2,true)`,
+        [previousOrganizationId, previousActorUserId],
+      );
+    }
+  }
+
+  private async requiresPrivilegedMfa(userId: string): Promise<boolean> {
+    const connection = await this.pool.connect();
+    try {
+      await connection.query("begin");
+      const required = await this.requiresPrivilegedMfaInTransaction(
+        connection,
+        userId,
+      );
+      await connection.query("commit");
+      return required;
+    } catch (error) {
+      await connection.query("rollback").catch(() => undefined);
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   private async requireRecentMfa(actor: AuthenticatedIdentity): Promise<void> {
@@ -2597,24 +2658,12 @@ export class IdentityService implements OnModuleDestroy {
       throw new UnauthorizedException("Invalid credentials");
     }
     const bindingHash = digest(body.client_binding);
-    const privileged = await this.pool.query<{ required: boolean }>(
-      `select exists(
-         select 1 from app.platform_grants g join app.permissions p on p.id=g.permission_id
-         where g.user_id=$1 and g.state='ACTIVE' and p.requires_privileged_mfa=true
-         union all
-         select 1 from app.memberships m
-         join app.membership_roles mr on mr.organization_id=m.organization_id and mr.membership_id=m.id
-         join app.role_permissions rp on rp.organization_id=mr.organization_id and rp.role_id=mr.role_id
-         join app.permissions p on p.id=rp.permission_id
-         where m.user_id=$1 and m.status='ACTIVE' and p.requires_privileged_mfa=true
-       ) as required`,
-      [identity.id],
-    );
+    const privileged = await this.requiresPrivilegedMfa(identity.id);
     const activeFactor = await this.pool.query<{ id: string }>(
       "select id from app.mfa_credentials where user_id=$1 and state='ACTIVE' limit 1",
       [identity.id],
     );
-    if (privileged.rows[0]?.required && !activeFactor.rows[0]) {
+    if (privileged && !activeFactor.rows[0]) {
       return this.createChallenge(
         identity,
         "MFA_ENROLL",
@@ -2623,7 +2672,7 @@ export class IdentityService implements OnModuleDestroy {
         true,
       );
     }
-    if (privileged.rows[0]?.required && activeFactor.rows[0]) {
+    if (privileged && activeFactor.rows[0]) {
       return this.createChallenge(
         identity,
         "MFA_VERIFY",

@@ -23,7 +23,13 @@ process.env.IDENTITY_DATABASE_URL = state.identityUrl;
 const owner = new Pool({ connectionString: state.ownerUrl, max: 2 });
 const userId = randomUUID();
 const organizationId = randomUUID();
+const secondOrganizationId = randomUUID();
 const membershipId = randomUUID();
+const operatorUserId = randomUUID();
+const operatorMembershipId = randomUUID();
+const ordinaryUserId = randomUUID();
+const ordinaryMembershipId = randomUUID();
+const platformUserId = randomUUID();
 const roleId = randomUUID();
 const roleIds = {
   INCIDENT_COMMANDER: roleId,
@@ -33,9 +39,20 @@ const roleIds = {
   FIELD_RESPONDER: randomUUID(),
 };
 const email = `${userId}@example.invalid`;
+const operatorEmail = `${operatorUserId}@example.invalid`;
+const ordinaryEmail = `${ordinaryUserId}@example.invalid`;
+const platformEmail = `${platformUserId}@example.invalid`;
 const password = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const operatorPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const ordinaryPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const platformPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const binding = randomBytes(32).toString("base64url");
+const operatorBinding = randomBytes(32).toString("base64url");
+const ordinaryBinding = randomBytes(32).toString("base64url");
+const platformBinding = randomBytes(32).toString("base64url");
 const totpSecret = new Secret({ size: 20 });
+const operatorTotpSecret = new Secret({ size: 20 });
+const platformTotpSecret = new Secret({ size: 20 });
 let app: Awaited<ReturnType<typeof NestFactory.create>>;
 let baseUrl: string;
 let authorization: string;
@@ -107,10 +124,60 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         loadLocalSecrets().keyId,
       ],
     );
+    for (const [id, address, secret] of [
+      [ordinaryUserId, ordinaryEmail, null],
+      [platformUserId, platformEmail, platformTotpSecret.base32],
+    ] as const) {
+      const hash = await argon2.hash(
+        id === ordinaryUserId ? ordinaryPassword : platformPassword,
+        {
+          type: argon2.argon2id,
+          memoryCost: 65_536,
+          timeCost: 3,
+          parallelism: 1,
+        },
+      );
+      await owner.query(
+        `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+         values($1,$2,'synthetic-http-identity',now(),'ACTIVE')`,
+        [id, address],
+      );
+      await owner.query(
+        "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
+        [id, hash],
+      );
+      if (secret) {
+        await owner.query(
+          `insert into app.mfa_credentials(id,user_id,seed_ciphertext,encryption_key_ref,state,confirmed_at)
+           values($1,$2,$3,$4,'ACTIVE',now())`,
+          [randomUUID(), id, encryptSeed(secret), loadLocalSecrets().keyId],
+        );
+      }
+    }
+    const operatorHash = await argon2.hash(operatorPassword, {
+      type: argon2.argon2id,
+      memoryCost: 65_536,
+      timeCost: 3,
+      parallelism: 1,
+    });
     await owner.query(
-      `insert into app.platform_grants(user_id,permission_id)
-       select $1,id from app.permissions where code='listOrganizations'`,
-      [userId],
+      `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+       values($1,$2,'synthetic-http-operator',now(),'ACTIVE')`,
+      [operatorUserId, operatorEmail],
+    );
+    await owner.query(
+      "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
+      [operatorUserId, operatorHash],
+    );
+    await owner.query(
+      `insert into app.mfa_credentials(id,user_id,seed_ciphertext,encryption_key_ref,state,confirmed_at)
+       values($1,$2,$3,$4,'ACTIVE',now())`,
+      [
+        randomUUID(),
+        operatorUserId,
+        encryptSeed(operatorTotpSecret.base32),
+        loadLocalSecrets().keyId,
+      ],
     );
     const setup = await owner.connect();
     try {
@@ -146,10 +213,56 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         ],
       );
       await setup.query(
-        `insert into app.membership_roles(organization_id,membership_id,role_id)
-         values($1,$2,$3)`,
-        [organizationId, membershipId, roleId],
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic HTTP Operator','ACTIVE',now())`,
+        [operatorMembershipId, organizationId, operatorUserId],
       );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic HTTP Responder','ACTIVE',now())`,
+        [ordinaryMembershipId, organizationId, ordinaryUserId],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3),($1,$4,$5),($1,$6,$7)`,
+        [
+          organizationId,
+          membershipId,
+          roleId,
+          operatorMembershipId,
+          roleIds.CONTROL_ROOM_OPERATOR,
+          ordinaryMembershipId,
+          roleIds.FIELD_RESPONDER,
+        ],
+      );
+      await setup.query("select set_config('app.organization_id',$1,true)", [
+        secondOrganizationId,
+      ]);
+      await setup.query(
+        `insert into app.organizations(id,slug,name,status)
+         values($1,$2,'Synthetic Secondary Tenant','ACTIVE')`,
+        [secondOrganizationId, `http-${secondOrganizationId}`],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic Operator Responder','ACTIVE',now())`,
+        [randomUUID(), secondOrganizationId, operatorUserId],
+      );
+      const platformGrant = await setup.query(
+        `insert into app.platform_grants(id,user_id,permission_id,state)
+         select $1,$2,id,'ACTIVE' from app.permissions
+         where domain='PLATFORM' and requires_privileged_mfa=true
+         order by code limit 1`,
+        [randomUUID(), platformUserId],
+      );
+      if (platformGrant.rowCount !== 1) {
+        throw new Error(
+          "No MFA-protected platform permission exists for fixture",
+        );
+      }
+      await setup.query("select set_config('app.organization_id',$1,true)", [
+        organizationId,
+      ]);
       const grants: Array<[keyof typeof roleIds, string[], string]> = [
         [
           "CONTROL_ROOM_OPERATOR",
@@ -239,6 +352,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       }),
     ).toBeDefined();
     const challenge = loginBody as { challenge_id: string };
+    expect(loginBody.purpose).toBe("MFA_VERIFY");
     const totp = new TOTP({ secret: totpSecret, digits: 6, period: 30 });
     const verified = await fetch(`${baseUrl}/auth/mfa/verify`, {
       method: "POST",
@@ -324,6 +438,265 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       headers: { authorization },
     });
     expect([400, 404]).toContain(noTenant.status);
+  });
+
+  it("requires MFA for a tenant-only Operator and preserves per-tenant authorization", async () => {
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: operatorEmail,
+        password: operatorPassword,
+        client_kind: "MOBILE",
+        client_binding: operatorBinding,
+      }),
+    });
+    expect(login.status).toBe(201);
+    const challenge = (await login.json()) as {
+      challenge_id: string;
+      purpose: string;
+      authentication_state: string;
+    };
+    expect(challenge.purpose).toBe("MFA_VERIFY");
+    expect(challenge.authentication_state).not.toBe("SESSION_HANDOFF_REQUIRED");
+
+    const verified = await fetch(`${baseUrl}/auth/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-auth-challenge-binding": operatorBinding,
+      },
+      body: JSON.stringify({
+        challenge_id: challenge.challenge_id,
+        code: new TOTP({
+          secret: operatorTotpSecret,
+          digits: 6,
+          period: 30,
+        }).generate(),
+      }),
+    });
+    expect(verified.status, await verified.clone().text()).toBe(201);
+    const handoff = (await verified.json()) as {
+      handoff: { handoff_id: string };
+    };
+    const redeemed = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${handoff.handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-auth-challenge-binding": operatorBinding,
+        },
+        body: JSON.stringify({ purpose: "SESSION" }),
+      },
+    );
+    expect(redeemed.status).toBe(200);
+    const session = (await redeemed.json()) as { access_token: string };
+    const tenantHeaders = {
+      authorization: `Bearer ${session.access_token}`,
+      "x-organization-id": organizationId,
+    };
+    expect(
+      (await fetch(`${baseUrl}/incidents`, { headers: tenantHeaders })).status,
+    ).toBe(200);
+
+    // The same user is only an ordinary responder in the second organization.
+    // MFA satisfies identity assurance but does not transfer tenant grants.
+    const otherTenant = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...tenantHeaders, "x-organization-id": secondOrganizationId },
+    });
+    expect([403, 404]).toContain(otherTenant.status);
+  });
+
+  it("allows password-only assurance for an ordinary member but denies privileged writes", async () => {
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: ordinaryEmail,
+        password: ordinaryPassword,
+        client_kind: "MOBILE",
+        client_binding: ordinaryBinding,
+      }),
+    });
+    expect(login.status).toBe(201);
+    const result = (await login.json()) as {
+      authentication_state: string;
+      handoff: { handoff_id: string };
+    };
+    expect(result.authentication_state).toBe("SESSION_HANDOFF_REQUIRED");
+    const redeemed = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${result.handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-auth-challenge-binding": ordinaryBinding,
+        },
+        body: JSON.stringify({ purpose: "SESSION" }),
+      },
+    );
+    expect(redeemed.status).toBe(200);
+    const session = (await redeemed.json()) as { access_token: string };
+    const denied = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${session.access_token}`,
+        "x-organization-id": organizationId,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "Synthetic unauthorized write",
+        category: "OTHER",
+        occurred_at: "2026-11-05T08:00:00Z",
+        source_kind: "TEST",
+      }),
+    });
+    expect(denied.status).toBe(403);
+  });
+
+  it("requires MFA for a platform-only identity without granting tenant incident access", async () => {
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: platformEmail,
+        password: platformPassword,
+        client_kind: "MOBILE",
+        client_binding: platformBinding,
+      }),
+    });
+    expect(login.status).toBe(201);
+    const challenge = (await login.json()) as {
+      challenge_id: string;
+      purpose: string;
+    };
+    expect(challenge.purpose).toBe("MFA_VERIFY");
+    const expired = await owner.query(
+      "update app.auth_challenges set expires_at=now()-interval '1 minute' where id=$1",
+      [challenge.challenge_id],
+    );
+    expect(expired.rowCount).toBe(1);
+    const expiredVerification = await fetch(`${baseUrl}/auth/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-auth-challenge-binding": platformBinding,
+      },
+      body: JSON.stringify({
+        challenge_id: challenge.challenge_id,
+        code: new TOTP({
+          secret: platformTotpSecret,
+          digits: 6,
+          period: 30,
+        }).generate(),
+      }),
+    });
+    expect([400, 401, 403]).toContain(expiredVerification.status);
+
+    const freshLogin = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: platformEmail,
+        password: platformPassword,
+        client_kind: "MOBILE",
+        client_binding: platformBinding,
+      }),
+    });
+    const freshChallenge = (await freshLogin.json()) as {
+      challenge_id: string;
+    };
+    const verified = await fetch(`${baseUrl}/auth/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-auth-challenge-binding": platformBinding,
+      },
+      body: JSON.stringify({
+        challenge_id: freshChallenge.challenge_id,
+        code: new TOTP({
+          secret: platformTotpSecret,
+          digits: 6,
+          period: 30,
+        }).generate(),
+      }),
+    });
+    expect(verified.status).toBe(201);
+    const handoff = (await verified.json()) as {
+      handoff: { handoff_id: string };
+    };
+    const redeemed = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${handoff.handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-auth-challenge-binding": platformBinding,
+        },
+        body: JSON.stringify({ purpose: "SESSION" }),
+      },
+    );
+    expect(redeemed.status).toBe(200);
+    const session = (await redeemed.json()) as { access_token: string };
+    const tenantRead = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        authorization: `Bearer ${session.access_token}`,
+        "x-organization-id": organizationId,
+      },
+    });
+    expect([403, 404]).toContain(tenantRead.status);
+  });
+
+  it("fails closed without a session when RLS-backed privilege discovery fails", async () => {
+    const before = await owner.query<{
+      sessions: number;
+      challenges: number;
+      handoffs: number;
+    }>(
+      `select
+         (select count(*)::int from app.sessions where user_id=$1) sessions,
+         (select count(*)::int from app.auth_challenges where user_id=$1) challenges,
+         (select count(*)::int from app.credential_handoffs where user_id=$1) handoffs`,
+      [userId],
+    );
+    await owner.query(
+      "revoke select on app.memberships from pbssu_m01_identity",
+    );
+    try {
+      const response = await fetch(`${baseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          login: email,
+          password,
+          client_kind: "MOBILE",
+          client_binding: binding,
+        }),
+      });
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).not.toMatch(
+        /permission denied|memberships|tenant|role|privilege/i,
+      );
+      expect(body).not.toContain(email);
+    } finally {
+      await owner.query(
+        "grant select on app.memberships to pbssu_m01_identity",
+      );
+    }
+    const after = await owner.query<{
+      sessions: number;
+      challenges: number;
+      handoffs: number;
+    }>(
+      `select
+         (select count(*)::int from app.sessions where user_id=$1) sessions,
+         (select count(*)::int from app.auth_challenges where user_id=$1) challenges,
+         (select count(*)::int from app.credential_handoffs where user_id=$1) handoffs`,
+      [userId],
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
   });
 
   it("executes all seven approved routes through real JWT, session, MFA, tenant, RBAC, and restricted DB paths", async () => {
