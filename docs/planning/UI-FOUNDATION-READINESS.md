@@ -1,10 +1,22 @@
 # UI Foundation Readiness
 
-**Status:** Ready to plan; operational UI implementation remains unauthorized.
-**Reviewed branch/base:** `chore/visual-development-workflow` at
-`15735dd7249cdb6ef92545f7f21159c0c5bf881e`.
-**Sprint 4 PR:** #4, open, not merged, not marked Draft; see the actual
+**Status:** UF-01A/B/C implementation is owner-authorized, but preflight is blocked by two mismatches between the approved OpenAPI contract and actual backend response shapes. No product UI implementation has started.
+**Reviewed implementation base:** `origin/main` at
+`6d7249b15aae43804feaf9bc0befaa4011f5d6a0` (Sprint 4 merge included).
+**Sprint 4 PR:** #4 is merged; see the actual
 [Pull Request](https://github.com/fauzibspp/PBSSU-RESCUE-OPS/pull/4).
+
+## UF-01 contract preflight blockers
+
+The owner has approved UF-01A, UF-01B and UF-01C and authorized local implementation. The implementation gate nevertheless fails because the authenticated client must consume approved existing contracts without inference or contract changes.
+
+1. **MFA enrollment response:** OpenAPI `components.schemas.MfaEnrollment` requires `enrollment_id`, `expires_at`, `state`, `delivery_status`, `challenge`, and `setup_handoff`. The actual `IdentityService.startMfaEnrollment()` returns `enrollment_id`, a `handoff` object (`handoff_id`, `purpose`, `expires_at`), and `authentication_state`. These are incompatible response shapes. This blocks implementing the complete privileged TOTP enrollment flow in UF-01A. Other login, challenge verification, handoff redemption, refresh and revocation work must remain within their individually compatible contracts; no partial flow may imply enrollment was completed.
+
+2. **Membership response:** OpenAPI `components.schemas.Membership` requires `id`, `version`, `created_at`, `organization_id`, `user_id`, `display_name`, `status`, `availability`, and `role_ids`. The actual `IdentityService.listMyMemberships()` returns `membership_id`, organization name/slug/status, display name, status, availability, and `roles` as `{code,name}` objects. The OpenAPI schema does not define the actual role-code projection. This blocks contract-compliant organization selection and role-aware navigation in UF-01B. Runtime role codes are not an approved contract fact for the browser client.
+
+No OpenAPI or backend change is authorized by this preflight record. Resolve by approving and recording a bounded reconciliation of the existing operation response schemas to the actual approved service behavior (or an explicitly approved compatible service behavior), then revalidate the manifest. Do not add operations, roles, permissions, entities, or infer response fields.
+
+The exact findings and evidence are recorded in [UF-01 preflight validation](../testing/UF-01-PREFLIGHT-VALIDATION.md).
 
 ## Current frontend
 
@@ -36,10 +48,10 @@ Existing contracts support a proposed sign-in and read-only incident slice:
 - Web sessions use bound secure, HttpOnly cookies and the documented origin / CSRF
   controls. Do not persist access tokens, refresh tokens, MFA seeds or recovery
   codes in browser storage, URLs, logs, or screenshots.
-- `listMyMemberships` returns only the authenticated user's memberships and
-  role codes. It can support an organization selector and role-aware navigation;
-  role information is a presentation hint only. The API must authorize every
-  request independently.
+- `listMyMemberships` is intended to provide the authenticated user's
+  memberships, but the approved Membership response schema does not match the
+  actual service projection. Do not build the organization selector or
+  role-aware navigation against inferred response fields.
 - `listIncidents` and `getIncident` are existing tenant-scoped, assurance-bound
   operations. They require `X-Organization-Id` as an untrusted selector and
   the exact operation permission. Server membership/RBAC checks remain
@@ -49,31 +61,30 @@ Existing contracts support a proposed sign-in and read-only incident slice:
   reason are conditional. The first UI proposal omits cancellation reason and
   other sensitive fields entirely.
 
-No frontend behavior currently integrates these contracts. Before an
-implementation slice, confirm the WEB handoff response and cookie behavior in
-the actual HTTP tests; do not assume the browser can read any credential
-material.
+No frontend behavior currently integrates these contracts. The verified
+`startMfaEnrollment` mismatch blocks the complete enrollment flow. The WEB
+handoff and cookie design exists in the backend, but browser behavior still
+requires real HTTP/browser validation after the contract blockers are resolved.
 
 ## Architecture and security gaps
 
-| Area                 | Current state                                                              | Readiness gap                                                                                 |
-| -------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Routing              | One diagnostic React entry; no router                                      | Choose a small route strategy in implementation scope                                         |
-| Authentication / MFA | Backend contracts and HTTP flows exist                                     | No browser login, challenge, TOTP, handoff, expiry or logout client                           |
-| Tenant context       | Membership API exposes current user's tenant memberships                   | No selected-tenant state or tenant-switch invalidation                                        |
-| Authorization        | Backend exact permission checks exist                                      | Navigation must be derived from returned role codes but never treated as security enforcement |
-| API client           | Preview-only same-origin development probe                                 | No typed API client, cookie/CSRF wrapper, abort handling or error mapping                     |
-| Session storage      | No web session implementation                                              | Use backend cookies; no token storage in local/session storage                                |
-| Errors               | No product error boundary or user-facing request states                    | Define generic safe errors, retry and session-expiry handling                                 |
-| Accessibility        | Preview has visible keyboard focus and skip link                           | No product form semantics, screen-reader announcements or automated axe coverage              |
-| Responsive UI        | Diagnostic preview has desktop/mobile viewport coverage                    | No product navigation or incident-list/detail responsive design                               |
-| Browser tests        | Four preview scenarios were previously run on Edge desktop/mobile projects | No auth or operational UI tests exist                                                         |
+| Area                 | Current state                                                              | Readiness gap                                                                                |
+| -------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Routing              | One diagnostic React entry; no router                                      | Choose a small route strategy in implementation scope                                        |
+| Authentication / MFA | Backend contracts and HTTP flows exist                                     | No browser login, challenge, TOTP, handoff, expiry or logout client                          |
+| Tenant context       | Membership service returns the current user's memberships                  | Response schema mismatch blocks compliant membership consumption and tenant switching        |
+| Authorization        | Backend exact permission checks exist                                      | Role-aware navigation awaits an approved Membership contract matching the service projection |
+| API client           | Preview-only same-origin development probe                                 | No typed API client, cookie/CSRF wrapper, abort handling or error mapping                    |
+| Session storage      | No web session implementation                                              | Use backend cookies; no token storage in local/session storage                               |
+| Errors               | No product error boundary or user-facing request states                    | Define generic safe errors, retry and session-expiry handling                                |
+| Accessibility        | Preview has visible keyboard focus and skip link                           | No product form semantics, screen-reader announcements or automated axe coverage             |
+| Responsive UI        | Diagnostic preview has desktop/mobile viewport coverage                    | No product navigation or incident-list/detail responsive design                              |
+| Browser tests        | Four preview scenarios were previously run on Edge desktop/mobile projects | No auth or operational UI tests exist                                                        |
 
-`listMyMemberships` does return role codes, but the UI should not call `listRoles`
-or `listPermissions` to infer grants unless the approved contract and user
-authorization explicitly permit it. Render only navigation affordances
-associated with the selected membership; unauthorized API responses remain
-the final authority.
+Although the service currently returns role codes, those fields are absent from
+the approved Membership response schema. The browser must not depend on them
+until the contract is reconciled. It must never call role or permission catalogs
+to infer grants; backend authorization remains authoritative.
 
 ## Proposed first vertical slice
 
@@ -97,12 +108,11 @@ reset, or delete any database.
 
 ## GitHub integration readiness
 
-PR #4 currently has no submitted reviews or inline review threads. GitHub
-reports `mergeable: true`, but this is not a substitute for review or CI: its
-combined status response contains no checks and its workflow-run lookup
-contains no runs. The current PR base SHA is `4d64be934497a4d004a9d1860bb3220a07450fee`;
-the accepted Sprint 4 head is not in `origin/main` while the PR is open.
-No code or PR metadata was changed during this review.
+PR #4 is merged. Its merge commit is `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`,
+which is the verified `origin/main` baseline for this UF-01 branch. At the time
+of the integration check, PR metadata showed no submitted reviews and no CI
+checks/workflow runs; those remain missing independent review evidence for the
+Sprint 4 change. No PR metadata was modified.
 
 Recommended bounded pull-request CI (proposal only):
 

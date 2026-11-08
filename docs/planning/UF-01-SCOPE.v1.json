@@ -1,8 +1,25 @@
 {
   "manifest_id": "PBSSU-UF-01",
   "version": "1.0.0",
-  "status": "PROPOSED_NOT_APPROVED",
-  "product_ui_implementation_authorized": false,
+  "status": "OWNER_APPROVED_IMPLEMENTATION_BLOCKED_BY_CONTRACT_MISMATCH",
+  "approval": {
+    "authority": "Project Owner",
+    "decision_date": "2026-11-08",
+    "approved_increments": ["UF-01A", "UF-01B", "UF-01C"],
+    "implementation_authorized": true,
+    "preflight_status": "BLOCKED",
+    "blockers": [
+      {
+        "operation": "startMfaEnrollment",
+        "issue": "OpenAPI MfaEnrollment response does not match the implemented service response; privileged TOTP enrollment cannot be consumed contract-compliantly."
+      },
+      {
+        "operation": "listMyMemberships",
+        "issue": "OpenAPI Membership response does not describe the implemented membership and roles projection; role-aware navigation cannot rely on the actual role codes through the approved contract."
+      }
+    ]
+  },
+  "product_ui_implementation_authorized": true,
   "contract_baseline": {
     "openapi_version": "3.1.0",
     "operation_count": 75,
@@ -53,7 +70,7 @@
       ],
       "boundaries": [
         "Use only memberships returned for the authenticated user",
-        "Use role codes from Membership for display affordances only",
+        "Role-aware navigation is blocked until the approved Membership response schema matches the actual service projection; never use client role codes as authorization",
         "Send X-Organization-Id as an untrusted selected-tenant selector on tenant operations",
         "Clear tenant-bound client data when the selected organization changes",
         "Do not call permission catalogs to infer grants or treat client navigation as authorization"

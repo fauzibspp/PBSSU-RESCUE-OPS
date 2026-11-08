@@ -111,3 +111,12 @@
 - **Scope:** still exactly 3 new tables and 4 existing operations; migrations 008-009 only; 29 tables/54 permissions. No new role, permission, API, table, or change_events extension.
 - **Open gates:** M01-R01, Q-05, Q-06, Q-08, production KMS/key lifecycle/logging, Auditor cancellation-reason view, and future post-dispatch release policy remain open. No production readiness claimed.
 - **Final local commit:** this Sprint 4-D completion commit includes the acceptance artifacts and journal entry. Root attachments remain untracked and untouched.
+
+## Run 2026-11-08 — UF-01 baseline and contract preflight
+
+- **Owner authorization:** UF-01A login/MFA/session, UF-01B authenticated shell/organization selection/role-aware navigation, and UF-01C read-only incident list/detail are approved for local implementation using only existing approved API contracts.
+- **Git baseline:** verified Sprint 4 PR #4 is merged at `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`; `origin/main` has the same SHA. Created `feat/uf-01-secure-web-foundation` from that baseline and carried the three accepted visual workflow commits (`b3baa0a`, `b09dbd7`, `713c0a5`) without changing PR #4 or its source branch.
+- **Preservation:** the two known untracked root attachments remain untouched and unstaged. No product UI source changes have been made.
+- **Preflight blockers:** OpenAPI `MfaEnrollment` disagrees with `IdentityService.startMfaEnrollment()` and blocks complete privileged MFA enrollment UI. OpenAPI `Membership` disagrees with `IdentityService.listMyMemberships()` and does not define returned role codes, blocking contract-compliant tenant selection and role-aware navigation. Exact evidence is in `../testing/UF-01-PREFLIGHT-VALIDATION.md`.
+- **Status:** owner implementation authorization is recorded, but implementation preflight is BLOCKED until a bounded response-contract reconciliation is authorized and recorded. No authentication, runtime, database, or browser tests were run; no tests are claimed.
+- **Next step:** resolve both response schemas without adding operations, permissions, entities, or operational workflows; rerun preflight, then proceed with UF-01A/B/C if the gate passes. No push, merge, deployment, or Sprint 5 work.
