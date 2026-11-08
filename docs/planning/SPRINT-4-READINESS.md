@@ -7,10 +7,10 @@
 
 ## Recommendation
 
-- **Planning: GO.** The roadmap, logical schema, authorization matrix, and OpenAPI identify the assignment and movement domains. The owner-approved S4-P package and optional/nullable duty contract are reconciled; preflight evidence determines scope freeze.
-- **Implementation: GO within frozen scope.** Preflight passed and the exact inventory is frozen. The implementation branch must still be created from the verified latest `origin/main` before S4-A.
+- **Planning: CONDITIONAL GO.** The roadmap, logical schema, authorization matrix, and OpenAPI identify the assignment and movement domains. The owner-approved S4-P package and optional/nullable duty contract are reconciled, but S4-P-02 does not settle global versus tenant-scoped responder exclusivity.
+- **Implementation: NO-GO pending owner clarification.** The exact 3-table/4-operation inventory is proposed but not frozen. Do not begin S4-A until the owner resolves responder uniqueness scope and preflight is rerun successfully.
 
-The Project Owner approved the three-table/four-existing-operation inventory and conditionally authorized implementation; preflight has passed and the manifest is frozen.
+The Project Owner approved the candidate three-table/four-existing-operation inventory and conditionally authorized implementation. The manifest is BLOCKED / NOT FROZEN pending a decision on responder uniqueness scope.
 
 ## Exact roadmap delta
 
@@ -63,7 +63,7 @@ Current request schemas describe `AssignmentInput` as `base_version`, up to 50 `
 
 The approved logical schema and dictionary already list three unimplemented tenant entities:
 
-1. `incident_personnel`: incident/membership assignment, optional nullable duty without default, assigned time, release time, and same-membership canonical user binding for the owner-approved global uniqueness rule.
+1. `incident_personnel`: incident/membership assignment, optional nullable duty without default, assigned time, release time, and a user/membership relationship. The uniqueness key remains unresolved pending the owner's global-versus-tenant decision.
 2. `incident_vehicles`: incident/vehicle assignment, assigned time, release time.
 3. `movement_logs`: assigned vehicle, optional incident location, movement kind, client occurrence time, server receipt time, actor membership, optional correction link and note.
 

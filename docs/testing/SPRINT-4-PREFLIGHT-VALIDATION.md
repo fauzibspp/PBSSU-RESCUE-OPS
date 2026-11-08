@@ -1,15 +1,19 @@
 # Sprint 4 Preflight Validation
 
 **Run date:** 2026-11-08
-**Branch:** `docs/autonomous-development-orchestrator`
-**Starting HEAD:** `6f82caced5170c08921ef5e8c739360c3616ab29`
-**Result:** **PASS — scope frozen; implementation may proceed on the authorized feature branch**
+**Branch:** `feat/sprint-4-assignment-movement` (created from verified `origin/main`; no implementation started)
+**Preflight source commit:** `ff9c187f0970004d5a48bd38f5641c359cf8f65e`
+**Result:** **BLOCKED — scope is not frozen; do not implement Sprint 4-A**
 
 ## Owner decision and contract reconciliation
 
 The Project Owner's 2026-11-08 S4-P-01 resolution is recorded in `DECISION-REGISTER.md`. `PersonnelAssignment.duty` is optional and nullable in OpenAPI output; existing string length constraints remain for non-null values. `AssignmentInput` remains unchanged, and the logical database field is nullable with no default or vocabulary. No duty is generated or inferred.
 
-The frozen inventory is exactly three tables (`incident_personnel`, `incident_vehicles`, `movement_logs`) and four existing operations (`getAssignments`, `setAssignments`, `listMovements`, `createMovement`). Permission mappings remain exactly G-04/G-06/G-07. `transitionIncident` OPEN→DISPATCHED prerequisites and `updateVehicle` assigned-state guard are bounded dependencies; `change_events` is unchanged. The Technical Lead clarification defines post-DISPATCHED assignment intervals as active until a separately authorized future release workflow; Sprint 4 implements no release or terminal transitions.
+The proposed inventory remains three tables (`incident_personnel`, `incident_vehicles`, `movement_logs`) and four existing operations (`getAssignments`, `setAssignments`, `listMovements`, `createMovement`), with permission mappings G-04/G-06/G-07. It is not frozen. The Technical Lead clarification defines post-DISPATCHED assignment intervals as active until a separately authorized future release workflow; Sprint 4 implements no release or terminal transitions.
+
+## Blocking operational ambiguity
+
+The approved S4-P-02 rule says a responder may hold at most one active incident assignment, but does not specify whether the uniqueness is global across organizations or tenant-scoped. These are materially different operational policies for a person with memberships in multiple organizations and produce different database constraints and eligibility outcomes. The prior proposed global `users.id` interpretation is not sufficiently determined by the approved wording or logical schema; it is withdrawn as an assumption. **PENDING OWNER DECISION:** confirm global-per-user exclusivity or one-per-tenant exclusivity. Until then, assignment uniqueness design, concurrency acceptance tests, scope freeze, and all Sprint 4 implementation are blocked.
 
 ## Checks executed
 
@@ -23,7 +27,7 @@ The frozen inventory is exactly three tables (`incident_personnel`, `incident_ve
 | Fingerprint negative fixture | `npm exec vitest -- run apps/api/test/contract.test.ts -t "rejects a changed synthetic file"` | PASS, 1 test; changed fixture content does not match the approved fingerprint. |
 | Scope and contract inventory | `node scripts/tmp-s4-check.cjs` (temporary local checker, removed after execution) | PASS: 75 unique operations, exact three Sprint 4 tables/four existing operations, operation permission keys, optional nullable duty, unchanged AssignmentInput. |
 | Final pre-freeze consistency | `node scripts/tmp-s4-prefreeze.cjs` (temporary checker, removed after execution) | PASS: exact 75 operation IDs, 3-table/4-operation inventory, permission keys, duty contract, lifecycle clarification, authorized contract-delta fingerprints and relative links. |
-| Frozen scope validation | `node scripts/tmp-s4-frozen-check.cjs` (temporary checker, removed after execution) | PASS: manifest status FROZEN; exact 3 tables/4 existing operations; 75 OpenAPI IDs; G-04/G-06/G-07 grants; duty/disposition semantics; delta fingerprints and links. |
+| Proposed inventory structural check | `node scripts/tmp-s4-frozen-check.cjs` (temporary checker, removed after execution; run before the ambiguity was recognized) | PASS as a structural check only: exact 3 tables/4 operations, OpenAPI IDs and permissions. It does not resolve the responder uniqueness policy and is not evidence of scope freeze. |
 | Sprint 3 scope regressions | `npm run scope:sprint3a`; `npm run scope:sprint3b`; `npm run scope:sprint3c` | PASS, all three commands; 75 operation inventory and prior scope checks retained. |
 | Full unit/contract suite | `npm test` | PASS: 19 tests passed across 2 files. |
 | Static checks | `npm run lint`; `npm run typecheck`; `npm run build`; `npm run format:check` | PASS for all four commands. |
@@ -38,9 +42,9 @@ The original expected fingerprint was `e78c2320255ca01eeecb7f54aa46606f63ebfb62f
 
 ## Gate decision
 
-**Preimplementation gate: PASS.** Fingerprint integrity passes with the authorized baseline update and negative fixture. The Technical Lead clarification resolves assignment disposition without automatic release: after DISPATCHED, intervals remain active until a separately authorized future release workflow explicitly ends them. Sprint 4 enables only OPEN→DISPATCHED after resource prerequisite checks; ON_SCENE, MONITORING, RETURNING, COMPLETED and CLOSED remain unavailable. No post-dispatch release/replacement, breakdown or stand-down is implemented. Future COMPLETED/CLOSED commands must reject unresolved active intervals.
+**Preimplementation gate: BLOCKED.** Fingerprint integrity now passes with the authorized baseline update and negative fixture. The Technical Lead clarification resolves post-DISPATCHED assignment disposition without automatic release. However, S4-P-02 does not settle whether responder uniqueness is global or tenant-scoped. The structural/contract checks cannot answer that operational question.
 
-`SPRINT-4-SCOPE.v1.json` is now **FROZEN** at exactly three new tables and four existing API operations. The implementation branch may be created after the documentation freeze commit and verification of the latest official `origin/main` baseline.
+`SPRINT-4-SCOPE.v1.json` is **BLOCKED / NOT FROZEN**. The proposed inventory remains exactly three tables and four existing operations, but assignment eligibility, uniqueness constraints, and concurrency acceptance tests cannot be finalized until the owner decides the responder uniqueness scope. The feature branch was created from verified `origin/main` and contains only the reviewed contract artifacts; no Sprint 4 implementation has started.
 
 ## Limitations and open gates
 
