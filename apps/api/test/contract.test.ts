@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 import { Ajv2020 } from "ajv/dist/2020.js";
 
 const root = new URL("../../../", import.meta.url);
+const normalizedFingerprint = (source: string) =>
+  createHash("sha256").update(source.replaceAll("\r\n", "\n")).digest("hex");
+const matchesApprovedFingerprint = (source: string, expected: string) =>
+  normalizedFingerprint(source) === expected;
 const scope = JSON.parse(
   readFileSync(new URL("docs/planning/M01-SCOPE.json", root), "utf8"),
 ) as {
@@ -78,6 +82,12 @@ const sprint3DContractDelta = JSON.parse(
       "../../../docs/testing/SPRINT-3D-CONTRACT-DELTA.json",
       import.meta.url,
     ),
+    "utf8",
+  ),
+) as { files: Record<string, string> };
+const sprint4ContractDelta = JSON.parse(
+  readFileSync(
+    new URL("docs/testing/SPRINT-4-CONTRACT-DELTA.json", root),
     "utf8",
   ),
 ) as { files: Record<string, string> };
@@ -188,8 +198,13 @@ describe("approved M01 contract boundary", () => {
         "\r\n",
         "\n",
       );
-      const actual = createHash("sha256").update(source).digest("hex");
-      if (path in sprint3DContractDelta.files) {
+      const actual = normalizedFingerprint(source);
+      if (path in sprint4ContractDelta.files) {
+        expect(
+          sprint4ContractDelta.files[path],
+          `${path} authorized Sprint 4 contract clarification`,
+        ).toBe(actual);
+      } else if (path in sprint3DContractDelta.files) {
         expect(
           sprint3DContractDelta.files[path],
           `${path} authorized Sprint 3-D contract clarification`,
@@ -224,9 +239,22 @@ describe("approved M01 contract boundary", () => {
           `${path} authorized Sprint 2 planning delta`,
         ).toBe(actual);
       } else {
-        expect(actual, path).toBe(expected);
+        expect(matchesApprovedFingerprint(source, expected), path).toBe(true);
       }
     }
+  });
+
+  it("rejects a changed synthetic file under the baseline fingerprint guard", () => {
+    const approvedFixture =
+      "# Synthetic agent rules\r\nNever bypass tenant isolation.\r\n";
+    const expected = normalizedFingerprint(approvedFixture);
+    expect(matchesApprovedFingerprint(approvedFixture, expected)).toBe(true);
+    expect(
+      matchesApprovedFingerprint(
+        approvedFixture.replace("Never bypass", "Always bypass"),
+        expected,
+      ),
+    ).toBe(false);
   });
 
   it("resolves every OpenAPI reference and maps every scoped operation to a controller", () => {
@@ -258,6 +286,41 @@ describe("approved M01 contract boundary", () => {
         }),
       ).not.toThrow();
     }
+  });
+
+  it("keeps Sprint 4 duty optional and nullable without adding it to assignment input", () => {
+    const validator = new Ajv2020({ strict: false, validateFormats: false });
+    validator.addSchema({
+      ...contract,
+      $id: "https://pbssu.invalid/openapi.json",
+    });
+    const personnel = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/PersonnelAssignment",
+    });
+    const input = validator.compile({
+      $ref: "https://pbssu.invalid/openapi.json#/components/schemas/AssignmentInput",
+    });
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      membership_id: "22222222-2222-4222-8222-222222222222",
+      assigned_at: "2026-11-08T00:00:00Z",
+    };
+    expect(personnel(base)).toBe(true);
+    expect(personnel({ ...base, duty: null })).toBe(true);
+    expect(personnel({ ...base, duty: "Responder" })).toBe(true);
+    expect(personnel({ ...base, duty: "" })).toBe(false);
+    expect(personnel({ ...base, duty: 3 })).toBe(false);
+    expect(
+      input({ base_version: 1, membership_ids: [], vehicle_ids: [] }),
+    ).toBe(true);
+    expect(
+      input({
+        base_version: 1,
+        membership_ids: [],
+        vehicle_ids: [],
+        duty: "x",
+      }),
+    ).toBe(false);
   });
 
   it("pairs LocationInput point and accuracy without changing shared Point semantics", () => {

@@ -1,0 +1,232 @@
+{
+  "document": "PBSSU-S4-SCOPE-001",
+  "version": "1.0.0",
+  "status": "FROZEN — EXACT OWNER-APPROVED CANDIDATE SCOPE",
+  "policy_approval": {
+    "authority": "Project Owner",
+    "decision_date": "2026-11-08",
+    "approved_decisions": [
+      "S4-P-01",
+      "S4-P-02",
+      "S4-P-03",
+      "S4-P-04",
+      "S4-P-05",
+      "S4-P-06",
+      "S4-P-07",
+      "S4-P-08",
+      "S4-P-09"
+    ],
+    "record": "docs/planning/DECISION-REGISTER.md",
+    "note": "Operational policy approval is distinct from scope freeze and implementation authorization."
+  },
+  "inventory": {
+    "new_tables": [
+      {
+        "name": "incident_personnel",
+        "status": "FROZEN",
+        "candidate_additions": [
+          "user_id for canonical global responder uniqueness; membership-composite FK must bind it to organization_id and membership_id"
+        ],
+        "active_definition": "released_at IS NULL",
+        "history": "new UUID/interval for each re-add; prior row retained",
+        "duty": "nullable, no default, no vocabulary; not in AssignmentInput"
+      },
+      {
+        "name": "incident_vehicles",
+        "status": "FROZEN",
+        "active_definition": "released_at IS NULL",
+        "history": "new UUID/interval for each re-add; prior row retained"
+      },
+      {
+        "name": "movement_logs",
+        "status": "FROZEN",
+        "append_only": true,
+        "correction_link": "supersedes_id; expose it in existing Movement response"
+      }
+    ],
+    "existing_table_extensions": [
+      {
+        "name": "incidents",
+        "operation": "setAssignments",
+        "change": "Use incident.version base_version; successful change increments once; empty replacement set explicitly releases all active assignments before DISPATCHED; identical set is a no-op.",
+        "status": "PROPOSED CONTRACT RECONCILIATION"
+      },
+      {
+        "name": "incidents",
+        "operation": "transitionIncident",
+        "change": "Enable DISPATCHED only by explicit human command after active eligible responder and AVAILABLE vehicle prerequisites; ON_SCENE remains unavailable.",
+        "status": "PROPOSED BOUNDED BEHAVIOR CHANGE"
+      },
+      {
+        "name": "vehicles",
+        "operation": "updateVehicle",
+        "change": "Reject MAINTENANCE/RETIRED while any active assignment exists; serialize with assignment writes.",
+        "status": "PROPOSED BOUNDED BEHAVIOR CHANGE"
+      },
+      {
+        "name": "memberships",
+        "operation": "setAssignments",
+        "change": "Require active membership and bind canonical user_id for global uniqueness.",
+        "status": "PROPOSED BOUNDED FK/ELIGIBILITY CHECK"
+      },
+      {
+        "name": "change_events",
+        "change": "No extension proposed in Sprint 4; current movement table is its own append-only timeline and no change-feed operation is in scope.",
+        "status": "NO CHANGE PROPOSED"
+      }
+    ],
+    "candidate_operations": [
+      {
+        "operationId": "getAssignments",
+        "method": "GET",
+        "path": "/incidents/{incidentId}/assignments",
+        "permissionKey": "getAssignments",
+        "group": "G-04"
+      },
+      {
+        "operationId": "setAssignments",
+        "method": "PUT",
+        "path": "/incidents/{incidentId}/assignments",
+        "permissionKey": "setAssignments",
+        "group": "G-06"
+      },
+      {
+        "operationId": "listMovements",
+        "method": "GET",
+        "path": "/incidents/{incidentId}/movements",
+        "permissionKey": "listMovements",
+        "group": "G-04"
+      },
+      {
+        "operationId": "createMovement",
+        "method": "POST",
+        "path": "/incidents/{incidentId}/movements",
+        "permissionKey": "createMovement",
+        "group": "G-07"
+      }
+    ],
+    "candidate_role_grants": {
+      "G-04": {
+        "getAssignments": {
+          "Organization Admin": "TENANT",
+          "Control Room Operator": "TENANT",
+          "Incident Commander": "TENANT",
+          "Read-Only Auditor": "TENANT",
+          "Field Responder": "ASSIGNED"
+        },
+        "listMovements": {
+          "Organization Admin": "TENANT",
+          "Control Room Operator": "TENANT",
+          "Incident Commander": "TENANT",
+          "Read-Only Auditor": "TENANT",
+          "Field Responder": "ASSIGNED"
+        }
+      },
+      "G-06": {
+        "setAssignments": {
+          "Control Room Operator": "TENANT",
+          "Incident Commander": "TENANT"
+        }
+      },
+      "G-07": {
+        "createMovement": {
+          "Control Room Operator": "TENANT",
+          "Incident Commander": "TENANT",
+          "Field Responder": "ASSIGNED"
+        }
+      },
+      "prohibitions": [
+        "No Platform Super Admin tenant grant",
+        "No Organization Admin/Auditor write grant",
+        "No wildcard or implicit grant"
+      ]
+    },
+    "candidate_migrations": [
+      {
+        "sequence": 8,
+        "name": "008-sprint4-permissions",
+        "contents": "four existing permission keys and exact approved role mappings only",
+        "status": "FROZEN"
+      },
+      {
+        "sequence": 9,
+        "name": "009-sprint4-assignment-movement",
+        "contents": "three candidate tenant tables, tenant-composite constraints, RLS/FORCE RLS and indexes",
+        "status": "FROZEN"
+      }
+    ]
+  },
+  "semantics": {
+    "assignment_replacement": "Before DISPATCHED only; arrays are complete active sets; empty array is explicit release-all; released rows are retained; re-add creates a new interval/UUID; identical active set has no mutation.",
+    "responder_uniqueness": "At most one active assignment globally per canonical users.id. Enforce via user_id on incident_personnel, FK-bound to selected membership, and unique partial index for unreleased rows. Return generic conflict without other-tenant/incident disclosure.",
+    "vehicle_uniqueness": "At most one active assignment globally per vehicle UUID; only same-tenant AVAILABLE vehicles eligible; MAINTENANCE/RETIRED ineligible.",
+    "movement": "Only contract kinds DEPARTURE/ARRIVAL/RETURN/OTHER. Actor membership and received_at are server-derived. occurred_at remains human reported UTC. Movement rows use immutable logical version 1 and do not increment incident.version. List deterministically by occurred_at, received_at, UUID. New correction record links through supersedes_id; exact replay of same client UUID returns existing representation, reuse with different content is generic 409. No update/delete, invented clock threshold, correction reason, or event-kind-specific authority.",
+    "lifecycle": "Only explicit human OPEN→DISPATCHED may be enabled after validating active eligible same-incident responder and AVAILABLE vehicle assignments, tenant scope and no conflicts. DISPATCHED is internal assignment evidence only. ON_SCENE, MONITORING, RETURNING, COMPLETED and CLOSED remain unavailable in Sprint 4. No automatic transition, release, stand-down or vehicle availability change.",
+    "vehicle_state": "updateVehicle rejects routine MAINTENANCE/RETIRED state while active assignment exists; no automatic release or new service state.",
+    "change_events": "No Sprint 4 extension proposed; existing incident/location event semantics preserved.",
+    "assignment_disposition": "Before DISPATCHED, authorized explicit replacement/release follows S4-P-03 and retains interval/audit history. From DISPATCHED onward, responder and vehicle intervals remain active until a separately authorized future resource-release workflow explicitly ends them. Sprint 4 implements no such workflow. Future COMPLETED/CLOSED transitions must be blocked while active intervals remain unresolved. Authority, evidence and transaction semantics for future release remain deferred."
+  },
+  "acceptance_tests": [
+    "Fresh/repeat migration chain; exact three new tables; no historical migration changes; no destructive rollback claim.",
+    "Restricted role, RLS/FORCE RLS, no tenant context, cross-tenant reads/writes/references.",
+    "Global responder uniqueness across two tenant memberships and generic conflict with no cross-tenant information leak.",
+    "Concurrent vehicle assignment across incidents has one winner; concurrent responder assignment across tenants has one winner; losing transactions leave no partial records.",
+    "Active membership, vehicle AVAILABLE status, maintenance/retired denial, and setAssignments/updateVehicle race.",
+    "Assignment replacement, explicit release-all, no-op, re-add with retained interval history, stale base_version, and post-DISPATCHED change denial.",
+    "Movement create/list permissions, actor/received_at derivation, append-only protections, same-incident location and correction lineage projection, deterministic ordering and exact replay/conflicting UUID behavior.",
+    "Movement ARRIVAL does not automatically transition status; ON_SCENE and post-dispatch cancellation remain unavailable.",
+    "DISPATCHED requires active eligible responder plus active AVAILABLE vehicle, same tenant/incident, explicit command, version CAS, atomic event/audit.",
+    "updateVehicle MAINTENANCE/RETIRED guard under concurrent assignment writes.",
+    "Real HTTP auth/MFA, tenant/RBAC negative cases, redaction, migration, format/lint/typecheck/build and exact scope/permission parity."
+  ],
+  "dependencies": [
+    "Sprint 3 accepted baseline and migrations 001-007",
+    "Q-01 role templates",
+    "Q-02 policies",
+    "S4-P-01 optional nullable duty decision",
+    "global uniqueness implementation and generic error mapping",
+    "M01-R01 remains open",
+    "Q-05/Q-06/Q-08 and production KMS/logging remain open"
+  ],
+  "exclusions": [
+    "Sprint 5 GPS/media/observations",
+    "Sprint 6 offline synchronization",
+    "external dispatch or agency acknowledgement",
+    "automatic assignment or lifecycle changes",
+    "ON_SCENE",
+    "post-DISPATCHED cancellation/release",
+    "emergency breakdown workflow",
+    "web/mobile client",
+    "production deployment",
+    "MONITORING",
+    "RETURNING",
+    "COMPLETED",
+    "CLOSED",
+    "post-DISPATCHED resource release/replacement",
+    "automatic assignment interval termination"
+  ],
+  "counts": {
+    "newTables": 3,
+    "existingOperations": 4,
+    "newOperationIds": 0,
+    "newRoles": 0,
+    "changeEventsExtension": 0
+  },
+  "approval": "FROZEN after successful preflight; Project Owner approved the exact 3-table/4-operation scope and implementation conditionally",
+  "stop_rule": "Implement only the frozen inventory and explicit bounded dependencies. Stop on new operational ambiguity, security failure, or required scope expansion.",
+  "duty_decision": {
+    "id": "S4-P-01-DUTY-CONTRACT",
+    "status": "RESOLVED BY PROJECT OWNER",
+    "decision_date": "2026-11-08",
+    "decision": "PersonnelAssignment.duty is optional and may be absent or NULL; AssignmentInput remains unchanged; database duty is nullable with no default; no generated/inferred value or invented enum; duty vocabulary/designation deferred; no vehicle-specific crew linkage."
+  },
+  "technical_clarifications": [
+    {
+      "id": "S4-TL-01",
+      "date": "2026-11-08",
+      "authority": "Technical Lead under delegated authority",
+      "decision": "From DISPATCHED onward, assignment intervals stay active until a separately authorized future resource-release workflow explicitly ends them. Sprint 4 does not implement release or terminal lifecycle transitions; future COMPLETED/CLOSED must reject unresolved active assignments.",
+      "scope_effect": "Contract/lifecycle clarification only; no table, operation, role or permission added."
+    }
+  ]
+}

@@ -22,8 +22,8 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 | T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
 | T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
 | T-009a | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged. |
-| T-010 | Manual assignments only, active resource validation, no external dispatch. |
-| T-011 | Append-only movement corrections, assigned-vehicle check, occurred vs received time. |
+| T-010 | Manual assignment replacement/release history; optional nullable duty with no default and no request field; active membership; one active responder per canonical user and vehicle; tenant/RLS, concurrency, version CAS, no external dispatch; assignments remain active from DISPATCHED until a future explicit release workflow, with no Sprint 4 release or terminal transition. |
+| T-011 | Append-only movement corrections with same-incident lineage; G-07 TENANT/ASSIGNED authorization; assigned-vehicle check; server actor/received time vs human-reported occurred time; no automatic ON_SCENE transition. |
 | T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |
 | T-013 | Optional GPS, invalid coordinate pair/range, media checksum/type/size/malware, quarantine and cross-tenant download denial. |
 | T-014 | Encrypted outbox survives restart/offline; account/tenant partitions; local pending label. |

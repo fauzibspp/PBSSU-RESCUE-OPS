@@ -42,6 +42,8 @@ and rescue operations management platform.
 7. Stop and request approval for destructive actions.
 8. Never claim a test passed unless it was executed.
 
+For bounded task sequencing and delegated local engineering decisions, follow [the autonomous development orchestrator](docs/planning/AUTONOMOUS-DEVELOPMENT.md). This reference does not override the approvals, safety constraints, or Git rules in this file.
+
 ## Git Rules
 - Use feature branches.
 - Keep commits small and descriptive.
