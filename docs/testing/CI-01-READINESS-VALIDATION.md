@@ -15,11 +15,11 @@ operational UI behavior, or historical migration changed. No push or PR update
 was performed. The two root attachments and two existing local PR review
 documents remain untracked and were not staged.
 
-The current local commit remains the accepted UF-01 baseline above. CI-01 work
-is uncommitted pending final review and local acceptance commit. The remote
-`origin/main` is `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`; the accepted UF-01
-HEAD is the expected baseline, and the approved Sprint 3 baseline is an
-ancestor of `origin/main`.
+The accepted UF-01 baseline is the parent of local CI-01 acceptance commit
+`e0f37aced0089e106fcdb7a34f0253c4d83fb996`. CI-01 is committed locally only;
+the workflow remains unpublished. The remote `origin/main` is
+`6d7249b15aae43804feaf9bc0befaa4011f5d6a0`; the approved Sprint 3 baseline is
+an ancestor of `origin/main`.
 
 ## Integration failures investigated
 
@@ -205,9 +205,10 @@ browser PASS is claimed. The two earlier full browser runs remain the actual
 browser evidence.
 
 The exact Gitleaks finding was independently proven to be content digests and
-was dispositioned by one fingerprint-specific ignore entry; both history and
-uncommitted CI-01 scans then passed. Actionlint v1.7.12 passed. A local
-acceptance commit is now appropriate under the owner's stated gate, subject to
-the final changed-file review and scoped staging. GitHub Actions execution
-remains pending and must be verified after separately authorized publication.
-Do not label CI-01 end-to-end PASS or PR #5 CI-validated until that run succeeds.
+was dispositioned by one fingerprint-specific ignore entry; the final
+10-commit outgoing-history scan and uncommitted CI-01 scans passed. Actionlint
+v1.7.12 passed. Local acceptance commit
+`e0f37aced0089e106fcdb7a34f0253c4d83fb996` was created from the reviewed
+14-file CI-01 set. GitHub Actions execution remains pending and must be
+verified after separately authorized publication. Do not label CI-01
+end-to-end PASS or PR #5 CI-validated until that run succeeds.
