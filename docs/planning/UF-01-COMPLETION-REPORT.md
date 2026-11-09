@@ -5,6 +5,8 @@
 ## Baseline and scope
 
 - Branch: `feat/uf-01-secure-web-foundation`.
+- UF-01 implementation and acceptance commit:
+  `046238660ddac1caf1a1b6758052cd427c1faed9`.
 - Contract-reconciliation parent: `4beb37b92122c662a35b28f5e9d74a2050abbed8`.
 - Approved base: `origin/main` at Sprint 4 merge `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`.
 - UF-01A/B/C are implemented under frozen manifest
@@ -77,5 +79,5 @@ Q-08 remain open. Browser session-expiry and every role permutation were not
 fully exercised in browser automation; backend authorization tests remain
 authoritative. No production deployment or operational use is authorized.
 
-No push, merge, or deployment was performed. The implementation commit SHA is
-recorded in Git history and the autonomous run journal after local commit.
+No push, merge, or deployment was performed. The two unrelated root
+attachments remain untracked and unstaged.
