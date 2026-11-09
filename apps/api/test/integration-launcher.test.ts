@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { join, resolve } from "node:path";
 import { validateIntegrationState } from "../../../scripts/run-integration-tests.js";
 
-const root = "D:\\PBSSU-RESCUE-OPS";
+const root = resolve("D:/PBSSU-RESCUE-OPS");
 const instance = "012345abcdef";
 const databaseName = `pbssu_m01_sprint4a_${instance}`;
-const stateFile = `${root}\\.cache\\sprint4a\\${instance}.json`;
+const stateFile = join(root, ".cache", "sprint4a", `${instance}.json`);
 const state = {
   scope: "sprint4a",
   instance,
@@ -57,7 +58,7 @@ describe("integration launcher database safety", () => {
 
   it("rejects state files outside the isolated project cache", () => {
     expect(() =>
-      validateIntegrationState(state, root, `${root}\\.env.json`),
+      validateIntegrationState(state, root, join(root, ".env.json")),
     ).toThrow();
   });
 });
