@@ -4,6 +4,8 @@ const port = Number(process.env.PBSSU_WEB_PORT ?? 5173);
 
 export default defineConfig({
   testDir: "./tests/browser",
+  globalSetup: "./tests/browser/global-setup.ts",
+  globalTeardown: "./tests/browser/global-teardown.ts",
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -14,8 +16,8 @@ export default defineConfig({
   outputDir: "test-results",
   use: {
     baseURL: `http://127.0.0.1:${port}`,
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    trace: "off",
+    screenshot: "off",
     video:
       process.env.PBSSU_CAPTURE_VIDEO === "1" ? "retain-on-failure" : "off",
     ...devices["Desktop Chrome"],
@@ -31,9 +33,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev:web -- --port ${port}`,
+    command: `npm run dev --workspace @pbssu/web -- --port ${port}`,
+    env: {
+      ...process.env,
+      PBSSU_API_PORT: String(Number(process.env.PBSSU_API_PORT ?? 3301)),
+      PBSSU_WEB_PORT: String(port),
+    },
     url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30_000,
   },
 });

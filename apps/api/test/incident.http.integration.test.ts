@@ -39,6 +39,8 @@ const conflictVehicleId = randomUUID();
 const raceVehicleId = randomUUID();
 const platformUserId = randomUUID();
 const enrollmentUserId = randomUUID();
+const webUserId = randomUUID();
+const webMembershipId = randomUUID();
 const roleId = randomUUID();
 const roleIds = {
   INCIDENT_COMMANDER: roleId,
@@ -52,11 +54,13 @@ const operatorEmail = `${operatorUserId}@example.invalid`;
 const ordinaryEmail = `${ordinaryUserId}@example.invalid`;
 const platformEmail = `${platformUserId}@example.invalid`;
 const enrollmentEmail = `${enrollmentUserId}@example.invalid`;
+const webEmail = `${webUserId}@example.invalid`;
 const password = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const operatorPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const ordinaryPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const platformPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const enrollmentPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const webPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const binding = randomBytes(32).toString("base64url");
 const operatorBinding = randomBytes(32).toString("base64url");
 const ordinaryBinding = randomBytes(32).toString("base64url");
@@ -65,6 +69,7 @@ const enrollmentBinding = randomBytes(32).toString("base64url");
 const totpSecret = new Secret({ size: 20 });
 const operatorTotpSecret = new Secret({ size: 20 });
 const platformTotpSecret = new Secret({ size: 20 });
+const webTotpSecret = new Secret({ size: 20 });
 const httpContract = JSON.parse(
   readFileSync(
     new URL("../../../docs/api/openapi.json", import.meta.url),
@@ -198,6 +203,12 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       timeCost: 3,
       parallelism: 1,
     });
+    const webHash = await argon2.hash(webPassword, {
+      type: argon2.argon2id,
+      memoryCost: 65_536,
+      timeCost: 3,
+      parallelism: 1,
+    });
     await owner.query(
       `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
        values($1,$2,'synthetic-http-mfa-enrollment',now(),'ACTIVE')`,
@@ -206,6 +217,25 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     await owner.query(
       "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
       [enrollmentUserId, enrollmentHash],
+    );
+    await owner.query(
+      `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+       values($1,$2,'synthetic-http-web-cookie',now(),'ACTIVE')`,
+      [webUserId, webEmail],
+    );
+    await owner.query(
+      "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
+      [webUserId, webHash],
+    );
+    await owner.query(
+      `insert into app.mfa_credentials(id,user_id,seed_ciphertext,encryption_key_ref,state,confirmed_at)
+       values($1,$2,$3,$4,'ACTIVE',now())`,
+      [
+        randomUUID(),
+        webUserId,
+        encryptSeed(webTotpSecret.base32),
+        loadLocalSecrets().keyId,
+      ],
     );
     await owner.query(
       `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
@@ -272,6 +302,11 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       );
       await setup.query(
         `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic WEB Cookie Commander','ACTIVE',now())`,
+        [webMembershipId, organizationId, webUserId],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
          values($1,$2,$3,'Synthetic HTTP Responder','ACTIVE',now())`,
         [ordinaryMembershipId, organizationId, ordinaryUserId],
       );
@@ -319,6 +354,11 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         `insert into app.membership_roles(organization_id,membership_id,role_id)
          values($1,$2,$3)`,
         [organizationId, enrollmentMembershipId, roleId],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3)`,
+        [organizationId, webMembershipId, roleId],
       );
       await setup.query(
         `insert into app.membership_roles(organization_id,membership_id,role_id)
@@ -588,10 +628,13 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     );
     const setupMaterial = (await setupResponse.json()) as {
       enrollment_id: string;
-      secret: string;
+      totp_secret: string;
+      otpauth_uri: string;
+      expires_at: string;
     };
+    assertContractSchema("CredentialMaterial", setupMaterial);
     const totp = new TOTP({
-      secret: Secret.fromBase32(setupMaterial.secret),
+      secret: Secret.fromBase32(setupMaterial.totp_secret),
       digits: 6,
       period: 30,
     });
@@ -615,6 +658,150 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     expect(await confirmation.text()).not.toMatch(
       /secret|otpauth|access_token|refresh_token/i,
     );
+  });
+
+  it("supports the approved WEB cookie session contract for incident reads", async () => {
+    const webBinding = randomBytes(32).toString("base64url");
+    const origin = "http://127.0.0.1:5173";
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: webEmail,
+        password: webPassword,
+        client_kind: "WEB",
+        client_binding: webBinding,
+      }),
+    });
+    expect(login.status).toBe(200);
+    const challenge = (await login.json()) as { challenge_id: string };
+    const verification = await fetch(`${baseUrl}/auth/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin,
+        "x-auth-challenge-binding": webBinding,
+      },
+      body: JSON.stringify({
+        challenge_id: challenge.challenge_id,
+        code: new TOTP({
+          secret: webTotpSecret,
+          digits: 6,
+          period: 30,
+        }).generate(),
+      }),
+    });
+    expect(verification.status).toBe(200);
+    const verified = (await verification.json()) as {
+      handoff: { handoff_id: string };
+    };
+    const redeemed = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${verified.handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin,
+          "x-auth-challenge-binding": webBinding,
+        },
+        body: JSON.stringify({ purpose: "SESSION" }),
+      },
+    );
+    expect(redeemed.status).toBe(204);
+    const setCookies = redeemed.headers.getSetCookie();
+    expect(setCookies).toHaveLength(4);
+    for (const name of [
+      "__Host-pbssu_access",
+      "__Host-pbssu_refresh",
+      "__Host-pbssu_binding",
+      "__Host-pbssu_csrf",
+    ]) {
+      expect(setCookies.some((cookie) => cookie.startsWith(`${name}=`))).toBe(
+        true,
+      );
+    }
+    const cookieHeader = setCookies
+      .map((cookie) => cookie.split(";", 1)[0])
+      .join("; ");
+    const csrfCookie = setCookies.find((cookie) =>
+      cookie.startsWith("__Host-pbssu_csrf="),
+    );
+    const csrf = csrfCookie?.split(";", 1)[0]?.split("=", 2)[1];
+    expect(csrf).toBeTruthy();
+
+    const created = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers: {
+        authorization,
+        "x-organization-id": organizationId,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "Synthetic web-cookie read fixture",
+        category: "FLOOD_MONITORING",
+        occurred_at: new Date().toISOString(),
+        source_kind: "SYNTHETIC_TEST",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const incident = (await created.json()) as { id: string };
+    const headers = {
+      cookie: cookieHeader,
+      origin,
+      "x-csrf-token": csrf!,
+      "x-organization-id": organizationId,
+    };
+    const list = await fetch(`${baseUrl}/incidents`, { headers });
+    expect(list.status).toBe(200);
+    assertContractSchema("IncidentPage", await list.json());
+    const detail = await fetch(`${baseUrl}/incidents/${incident.id}`, {
+      headers,
+    });
+    expect(detail.status).toBe(200);
+    assertContractSchema("Incident", await detail.json());
+
+    const browserReadHeaders = {
+      cookie: cookieHeader,
+      "x-csrf-token": csrf!,
+      "sec-fetch-site": "same-origin",
+    };
+    const memberships = await fetch(`${baseUrl}/me/memberships?limit=20`, {
+      headers: browserReadHeaders,
+    });
+    expect(memberships.status).toBe(200);
+    assertContractSchema("MyMembershipPage", await memberships.json());
+    const browserList = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...browserReadHeaders,
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(browserList.status).toBe(200);
+    assertContractSchema("IncidentPage", await browserList.json());
+    const crossSiteRead = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...browserReadHeaders,
+        "sec-fetch-site": "cross-site",
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(crossSiteRead.status).toBe(401);
+    const crossSiteMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: { ...browserReadHeaders, "sec-fetch-site": "cross-site" },
+      },
+    );
+    expect(crossSiteMemberships.status).toBe(400);
+
+    const missingCsrf = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, "x-csrf-token": "invalid" },
+    });
+    expect(missingCsrf.status).toBe(401);
+    const untrustedOrigin = await fetch(`${baseUrl}/incidents/${incident.id}`, {
+      headers: { ...headers, origin: "http://127.0.0.1:5999" },
+    });
+    expect(untrustedOrigin.status).toBe(401);
   });
 
   it("rejects missing, invalid, and tenantless authentication before data access", async () => {

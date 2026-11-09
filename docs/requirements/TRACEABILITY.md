@@ -56,6 +56,19 @@ Owner approval Q-02 on 2026-11-07 freezes exactly three new tables (`incidents`,
 
 Approved Decision A and B (2026-11-07) trace cancellation-reason projection and append-only/no-purge constraints through FR-007/FR-009/FR-022 and NFR-003/NFR-010; operations `listIncidents`, `getIncident`, `transitionIncident`, `listAuditLogs`; entities `incidents`, `audit_logs`, `change_events`; tests T-007, T-017, T-022, T-N03, T-N10. Full reason is restricted to authorized Commander/Operator incident reads; responder is minimized; Org Admin/Platform have no automatic access. Auditor reason access has no current API projection (`listAuditLogs` omits metadata) and is a deferred contract dependency. No API, permission or role grant is added. Append-only writes/corrections and no Sprint 3 purge are checked under Q-05 OPEN; no indefinite-retention policy is inferred.
 
+## UF-01 web traceability
+
+| UF-01 requirement                                                                         | Existing operations/entities                                                                                                                                         | Browser and integration evidence                                                                                                      |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Login, MFA challenge/enrollment, one-time setup handoff, session establishment and logout | `login`, `verifyMfa`, `startMfaEnrollment`, `confirmMfaEnrollment`, `redeemCredentialHandoff`, `refreshSession`, `revokeSession`; existing identity/session entities | Real headed Edge synthetic Commander login/MFA/enrollment/logout scenarios; identity HTTP integration tests; no new API/entity        |
+| Authenticated membership discovery and tenant switching                                   | `listMyMemberships`; `memberships`, `organizations`, existing identity/session entities                                                                              | Edge selects and switches between two synthetic tenants; integration verifies response shape and cross-site/originless request policy |
+| Read-only incident list/detail and tenant isolation                                       | `listIncidents`, `getIncident`; `incidents`, existing authorization and tenant context                                                                               | Edge list/detail and stale-tenant clearing; restricted-role PostgreSQL/HTTP integration tests cover RBAC and cross-tenant denial      |
+| Client role display is presentation only; no implicit platform tenant access              | Q-01 exact role templates and existing server RBAC                                                                                                                   | Synthetic Commander browser fixture; backend permission and platform-denial integration tests; no client grant path                   |
+
+Execution date, commands, counts, exclusions and remaining gaps are recorded
+in [UF-01 final acceptance](../testing/UF-01-FINAL-ACCEPTANCE.md). Browser
+testing does not replace API authorization, RLS, or production readiness gates.
+
 ## M00.2 identity security traceability
 
 | Security requirement | Functional/NFR links            | Modules  | API surfaces                                                                                                                                                                | Entities                                                                                                       | Planned tests              |

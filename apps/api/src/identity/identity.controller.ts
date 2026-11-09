@@ -6,6 +6,7 @@ import {
   Header,
   Headers,
   HttpCode,
+  InternalServerErrorException,
   Param,
   Post,
   PipeTransform,
@@ -57,6 +58,8 @@ export class IdentityController {
     cookieHeader: string | undefined,
     csrf: string | undefined,
     origin: string | undefined,
+    fetchSite?: string,
+    originlessRead = false,
   ): Promise<string> {
     const cookies = parseCookie(cookieHeader ?? "");
     const access = cookies["__Host-pbssu_access"];
@@ -64,8 +67,11 @@ export class IdentityController {
       return bearerToken(authorization);
     }
     const binding = cookies["__Host-pbssu_binding"];
+    const trustedRequest =
+      origin === trustedOrigin() ||
+      (originlessRead && origin === undefined && fetchSite === "same-origin");
     if (
-      origin !== trustedOrigin() ||
+      !trustedRequest ||
       !binding ||
       !csrf ||
       csrf !== cookies["__Host-pbssu_csrf"]
@@ -168,9 +174,17 @@ export class IdentityController {
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listSessions(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        fetchSite,
+        true,
+      ),
     );
   }
 
@@ -311,9 +325,17 @@ export class IdentityController {
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.getMfaStatus(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        fetchSite,
+        true,
+      ),
     );
   }
 
@@ -325,9 +347,17 @@ export class IdentityController {
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listMyMemberships(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        fetchSite,
+        true,
+      ),
       cursor,
       limit,
     );
@@ -490,12 +520,33 @@ export class IdentityController {
       response.status(204).end();
       return;
     }
+    let credentialMaterial = material;
+    if (body.purpose === "TOTP_SETUP") {
+      if (
+        material.kind !== "TOTP_SETUP" ||
+        typeof material.secret !== "string" ||
+        typeof material.enrollment_id !== "string" ||
+        typeof material.otpauth_uri !== "string" ||
+        typeof material.expires_at !== "string"
+      ) {
+        throw new InternalServerErrorException(
+          "Credential material unavailable",
+        );
+      }
+      credentialMaterial = {
+        kind: material.kind,
+        enrollment_id: material.enrollment_id,
+        totp_secret: material.secret,
+        otpauth_uri: material.otpauth_uri,
+        expires_at: material.expires_at,
+      };
+    }
     response
       .status(200)
       .setHeader(
         "Content-Type",
         "application/vnd.pbssu.credential-material+json",
       )
-      .json(material);
+      .json(credentialMaterial);
   }
 }

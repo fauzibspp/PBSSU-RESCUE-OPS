@@ -76,3 +76,22 @@ These responses also carry the already documented `Cache-Control: no-store` and
 - The full guarded integration suite passed 43 tests across six files after
   the response status and no-store corrections. This is local synthetic test
   evidence, not production security or KMS evidence.
+
+## Same-origin browser reads
+
+Real Edge testing confirmed that same-origin browser `GET` requests can omit
+the `Origin` header even when the browser sends the session cookies. The web
+client uses the already approved cookie session and CSRF double-submit design;
+this is a transport detail, not a new authentication mode. The existing
+identity and incident read handlers accept an originless request only for
+explicit read operations when `Sec-Fetch-Site` is exactly `same-origin`, a
+session binding is present, and the CSRF header matches the CSRF cookie. A
+provided untrusted Origin, cross-site fetch metadata, missing binding, or
+missing/mismatched CSRF value remains denied. Cookie-authenticated writes
+continue to require the exact trusted Origin.
+
+The correction applies only to `GET /auth/sessions`, `GET /auth/mfa`,
+`GET /me/memberships`, `GET /incidents` and `GET /incidents/{incidentId}`.
+Backend HTTP integration tests exercise originless same-origin reads and
+cross-site denial. No operation, request schema, permission, role, or database
+entity was added.

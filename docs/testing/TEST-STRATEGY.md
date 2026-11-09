@@ -65,6 +65,23 @@ Sprint 4-A database acceptance adds a dedicated fresh PostgreSQL/PostGIS environ
 
 Each feature must link requirement → operation/entity → named test → execution result. Store command, environment, date, counts and failure details; never label a planned test passed. CI adds lint/type checks, unit/integration/contract tests and frontend/mobile checks as applications exist. Migration verification includes fresh DB and upgrade from prior approved schema. API security matrix must grow with each endpoint.
 
+## UF-01 web acceptance evidence (2026-11-09)
+
+The UF-01 browser suite uses actual headed Edge against the Vite app and Nest
+HTTP API, with synthetic identities and an isolated test database. It covers
+generic login denial, privileged TOTP challenge and verification, first-login
+TOTP enrollment and purpose-bound handoff on desktop, membership/tenant
+switching, read-only incident list/detail, stale-tenant data clearing,
+unauthenticated deep-link denial, and desktop logout/revocation. The run passed
+7 tests and skipped the duplicate one-time enrollment flow in the mobile
+project. The separate desktop enrollment test passed. Screenshots contain only
+synthetic data; browser tracing, automatic screenshots and video are disabled
+for credential flows. See [UF-01 final acceptance](UF-01-FINAL-ACCEPTANCE.md).
+
+Browser evidence does not include a full axe/WCAG audit, complete manual
+screen-reader review, browser session-expiry flow, or every role permutation.
+Those gaps remain explicit and are not inferred from backend tests.
+
 Pilot gate: all required tests executed, no unresolved critical/high tenant or privacy vulnerabilities, medium residual risk accepted by named owners, restore exercise completed, approved data/operational policies and UAT sign-off. Production deployment remains separately authorized.
 
 ## M00.1 planned foundation extensions

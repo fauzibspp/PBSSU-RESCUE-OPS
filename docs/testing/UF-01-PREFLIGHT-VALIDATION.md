@@ -87,4 +87,32 @@ mutation or dispatch interface is included.
 
 The scope is frozen for implementation. UI behavior, browser cookie/CSRF
 integration, screenshots, accessibility, and product Playwright cases are not
-yet run; those are UF-01A/B/C implementation acceptance gates.
+yet run at the time of this initial preflight; the implementation and executed
+acceptance evidence superseding that statement are recorded in
+[UF-01 final acceptance](UF-01-FINAL-ACCEPTANCE.md) and the
+[completion report](../planning/UF-01-COMPLETION-REPORT.md).
+
+## Implementation continuation — 2026-11-09
+
+The bounded same-origin GET compatibility correction was added after headed
+Edge confirmed the browser transport behavior. It is limited to safe reads
+with same-origin Fetch Metadata, a session binding and matching CSRF
+double-submit values; cross-site and cookie-authenticated writes remain
+denied. Real HTTP integration now passes 44/44.
+
+Headed Edge ran on loopback against the compiled Nest API and isolated synthetic
+Sprint 4-A database. The suite completed with 7 passed and 1 skipped (the
+one-time enrollment identity is run only once per invocation); the desktop
+MFA enrollment flow separately completed successfully. Desktop logout and
+post-logout route denial passed. Screenshots were produced and inspected for
+desktop and Pixel 7 emulation. Test output, storage limitations and remaining
+accessibility/production gates are listed in the final acceptance record.
+
+Current checks: unit 30/30, contract 12/12, integration 44/44, Sprint 3-A/B/C
+and Sprint 4 scope checks PASS, lint/typecheck/API build/web build PASS, and
+changed-file formatting plus `git diff --check` PASS. Whole-repository
+`format:check` still reports nine untouched baseline files. Ajv component
+schema validation passed; a dedicated OpenAPI 3.1 standards linter is not
+installed. Acceptance remains CONDITIONAL for local development because full
+accessibility, session-expiry browser coverage and production gates remain
+open.
