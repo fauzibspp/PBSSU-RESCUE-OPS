@@ -12,6 +12,7 @@ export default defineConfig({
   reporter: [
     ["list"],
     ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["json", { outputFile: "test-results/playwright-results.json" }],
   ],
   outputDir: "test-results",
   use: {
@@ -32,15 +33,18 @@ export default defineConfig({
       use: { ...devices["Pixel 7"], channel: "msedge" },
     },
   ],
-  webServer: {
-    command: `npm run dev --workspace @pbssu/web -- --port ${port}`,
-    env: {
-      ...process.env,
-      PBSSU_API_PORT: String(Number(process.env.PBSSU_API_PORT ?? 3301)),
-      PBSSU_WEB_PORT: String(port),
-    },
-    url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: false,
-    timeout: 30_000,
-  },
+  webServer:
+    process.env.PBSSU_BROWSER_PREFLIGHT_ONLY === "1"
+      ? undefined
+      : {
+          command: `npm run dev --workspace @pbssu/web -- --port ${port}`,
+          env: {
+            ...process.env,
+            PBSSU_API_PORT: String(Number(process.env.PBSSU_API_PORT ?? 3301)),
+            PBSSU_WEB_PORT: String(port),
+          },
+          url: `http://127.0.0.1:${port}`,
+          reuseExistingServer: false,
+          timeout: 30_000,
+        },
 });

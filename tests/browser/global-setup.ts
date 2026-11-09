@@ -1,14 +1,56 @@
 import { randomBytes, randomUUID, createCipheriv } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, resolve, sep } from "node:path";
+import { spawnSync } from "node:child_process";
 import * as argon2 from "argon2";
 import { Pool } from "pg";
 import { Secret } from "otpauth";
 import { loadLocalSecrets } from "../../apps/api/src/identity/local-secrets.js";
+import { validateIntegrationState } from "../../scripts/run-integration-tests.js";
 
 const fixturePath = resolve(".cache/uf01/browser-fixture.json");
 const expectedImage =
   "postgis/postgis:18-3.7@sha256:440bdd14e3edccfce04d080d8a1a0cbae5763fa16a1c4172bff83530828461de";
+
+function cleanupFixture(): void {
+  try {
+    if (existsSync(fixturePath)) unlinkSync(fixturePath);
+  } catch {
+    // Best effort only. The normal Playwright teardown reports cleanup errors.
+  }
+}
+
+function protectFixtureFile(): void {
+  if (process.platform === "win32") {
+    const username = process.env.USERNAME;
+    const domain = process.env.USERDOMAIN;
+    if (!username)
+      throw new Error("Could not protect synthetic browser fixture");
+    const account = domain ? `${domain}\\${username}` : username;
+    const result = spawnSync(
+      "icacls",
+      [
+        fixturePath,
+        "/inheritance:r",
+        "/grant:r",
+        `${account}:(F)`,
+        "SYSTEM:(F)",
+      ],
+      { stdio: "ignore", windowsHide: true },
+    );
+    if (result.error || result.status !== 0) {
+      throw new Error("Could not protect synthetic browser fixture");
+    }
+    return;
+  }
+  chmodSync(fixturePath, 0o600);
+}
 
 function encryptSeed(secret: string): string {
   const { encryptionKey } = loadLocalSecrets();
@@ -25,7 +67,17 @@ function encryptSeed(secret: string): string {
 
 export default async function globalSetup(): Promise<void> {
   const statePath = process.env.PBSSU_TEST_DATABASE_STATE;
-  if (!statePath) return;
+  if (!statePath) {
+    if (
+      process.env.CI === "true" ||
+      process.env.PBSSU_BROWSER_ACCEPTANCE_REQUIRED === "1"
+    ) {
+      throw new Error(
+        "Required browser acceptance needs PBSSU_TEST_DATABASE_STATE",
+      );
+    }
+    return;
+  }
   const projectRoot = resolve(".");
   const resolvedState = resolve(statePath);
   const cacheRoot = resolve(projectRoot, ".cache", "sprint4a") + sep;
@@ -33,27 +85,20 @@ export default async function globalSetup(): Promise<void> {
     throw new Error(
       "Refusing browser fixtures outside isolated Sprint 4-A state",
     );
-  const state = JSON.parse(
-    await (await import("node:fs/promises")).readFile(resolvedState, "utf8"),
-  ) as Record<string, string>;
-  if (
-    state.scope !== "sprint4a" ||
-    state.image !== expectedImage ||
-    !/^pbssu_m01_sprint4a_[a-f0-9]{12}$/.test(state.databaseName ?? "")
-  ) {
+  let state: Record<string, string>;
+  try {
+    state = JSON.parse(
+      await (await import("node:fs/promises")).readFile(resolvedState, "utf8"),
+    ) as Record<string, string>;
+    validateIntegrationState(state, projectRoot, resolvedState);
+  } catch {
     throw new Error(
-      "Browser fixtures require the isolated synthetic Sprint 4-A database",
+      "Browser acceptance requires a valid isolated synthetic Sprint 4-A database state",
     );
   }
-  const ownerUrl = new URL(state.ownerUrl ?? "");
-  if (
-    ownerUrl.protocol !== "postgresql:" ||
-    ownerUrl.hostname !== "127.0.0.1" ||
-    decodeURIComponent(ownerUrl.username) !== "pbssu_m01_owner" ||
-    ownerUrl.pathname !== `/${state.databaseName}`
-  ) {
+  if (state.image !== expectedImage) {
     throw new Error(
-      "Refusing browser fixture database outside the isolated local test boundary",
+      "Browser acceptance requires the pinned isolated synthetic database image",
     );
   }
 
@@ -530,37 +575,57 @@ export default async function globalSetup(): Promise<void> {
   }
 
   mkdirSync(dirname(fixturePath), { recursive: true });
-  writeFileSync(
-    fixturePath,
-    JSON.stringify({
-      email,
-      password,
-      browserAccounts: [
-        {
-          projectName: "desktop-edge",
-          email,
-          password,
-          totpSecret: totp.base32,
-        },
-        {
-          projectName: "mobile-edge",
-          email: mobileBrowserEmail,
-          password: mobileBrowserPassword,
-          totpSecret: mobileBrowserTotp.base32,
-        },
-      ],
-      enrollEmail,
-      enrollPassword,
-      mobileEnrollEmail,
-      mobileEnrollPassword,
-      totpSecret: totp.base32,
-      organizationA: orgA,
-      organizationB: orgB,
-      incidentA,
-      incidentB,
-      roleOrganizations,
-      platformAccounts,
-    }),
-    { mode: 0o600 },
-  );
+  if (existsSync(fixturePath)) {
+    throw new Error(
+      "A previous synthetic browser fixture remains; remove it only after confirming it is test-generated",
+    );
+  }
+  try {
+    writeFileSync(
+      fixturePath,
+      JSON.stringify({
+        email,
+        password,
+        browserAccounts: [
+          {
+            projectName: "desktop-edge",
+            email,
+            password,
+            totpSecret: totp.base32,
+          },
+          {
+            projectName: "mobile-edge",
+            email: mobileBrowserEmail,
+            password: mobileBrowserPassword,
+            totpSecret: mobileBrowserTotp.base32,
+          },
+        ],
+        enrollEmail,
+        enrollPassword,
+        mobileEnrollEmail,
+        mobileEnrollPassword,
+        totpSecret: totp.base32,
+        organizationA: orgA,
+        organizationB: orgB,
+        incidentA,
+        incidentB,
+        roleOrganizations,
+        platformAccounts,
+      }),
+      { mode: 0o600, flag: "wx" },
+    );
+    protectFixtureFile();
+    process.once("exit", cleanupFixture);
+    process.once("SIGINT", () => {
+      cleanupFixture();
+      process.exit(130);
+    });
+    process.once("SIGTERM", () => {
+      cleanupFixture();
+      process.exit(143);
+    });
+  } catch {
+    cleanupFixture();
+    throw new Error("Could not safely create synthetic browser fixture");
+  }
 }

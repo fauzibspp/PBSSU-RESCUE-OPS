@@ -29,6 +29,13 @@ async function bootstrap(): Promise<void> {
   });
   app.enableShutdownHooks();
   await app.listen(config.PORT, config.HOST);
+  if (typeof process.send === "function") {
+    process.send({
+      type: "pbssu-test-api-ready",
+      host: config.HOST,
+      port: config.PORT,
+    });
+  }
 }
 
 bootstrap().catch(() => {

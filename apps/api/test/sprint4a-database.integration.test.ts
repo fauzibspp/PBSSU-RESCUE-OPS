@@ -174,7 +174,7 @@ describe("Sprint 4-A PostgreSQL tenant assignments and movement integrity", () =
           [movementB],
         );
         const attemptedUpdate = await client.query(
-          "update app.incident_personnel set duty='unseen' where id=$1",
+          "update app.incident_personnel set released_at=now() where id=$1",
           [assignmentB],
         );
         return { incident, assignment, vehicle, movement, attemptedUpdate };
@@ -322,7 +322,7 @@ describe("Sprint 4-A PostgreSQL tenant assignments and movement integrity", () =
             [activeResponderAssignmentId],
           ),
       ),
-    ).rejects.toMatchObject({ code: "P0001" });
+    ).rejects.toMatchObject({ code: "42501" });
     await expect(
       inTenant(
         runtime,

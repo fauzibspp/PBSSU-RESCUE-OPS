@@ -3,9 +3,32 @@ import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Secret, TOTP } from "otpauth";
+import { parseBrowserFixture, type BrowserFixture } from "./fixture.js";
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 const fixturePath = resolve(".cache/uf01/browser-fixture.json");
+
+function requireBrowserFixture(): void {
+  if (existsSync(fixturePath)) return;
+  if (
+    process.env.CI === "true" ||
+    process.env.PBSSU_BROWSER_ACCEPTANCE_REQUIRED === "1"
+  ) {
+    throw new Error("Required authenticated browser fixture is missing");
+  }
+  test.skip(
+    true,
+    "Authenticated browser acceptance requires PBSSU_TEST_DATABASE_STATE; use @preview tests for the diagnostic UI only",
+  );
+}
+
+function readBrowserFixture(): BrowserFixture {
+  try {
+    return parseBrowserFixture(JSON.parse(readFileSync(fixturePath, "utf8")));
+  } catch {
+    throw new Error("Synthetic browser fixture is invalid or incomplete");
+  }
+}
 
 type BrowserFixture = {
   browserAccounts: {
@@ -38,7 +61,7 @@ type BrowserFixture = {
   }[];
 };
 
-test("sign-in page renders accessibly at supported viewport", async ({
+test("@preview sign-in page renders accessibly at supported viewport", async ({
   page,
 }, testInfo) => {
   const pageErrors: string[] = [];
@@ -92,7 +115,7 @@ test("sign-in page renders accessibly at supported viewport", async ({
   expect(failedRequests).toEqual([]);
 });
 
-test("direct protected deep link requires an authenticated session", async ({
+test("@preview direct protected deep link requires an authenticated session", async ({
   page,
 }) => {
   await page.goto("/app/incidents");
@@ -106,16 +129,11 @@ test("direct protected deep link requires an authenticated session", async ({
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("real WEB login, MFA, tenant switching, incident reads and logout", async ({
+test("@acceptance real WEB login, MFA, tenant switching, incident reads and logout", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    !existsSync(fixturePath),
-    "Set PBSSU_TEST_DATABASE_STATE for synthetic HTTP fixture setup",
-  );
-  const fixture = JSON.parse(
-    readFileSync(fixturePath, "utf8"),
-  ) as BrowserFixture;
+  requireBrowserFixture();
+  const fixture = readBrowserFixture();
   const browserAccount = fixture.browserAccounts.find(
     (item) => item.projectName === testInfo.project.name,
   );
@@ -356,16 +374,11 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
   ).toBe(true);
 });
 
-test("platform-only privileged identity receives no tenant workspace", async ({
+test("@acceptance platform-only privileged identity receives no tenant workspace", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    !existsSync(fixturePath),
-    "Set PBSSU_TEST_DATABASE_STATE for synthetic HTTP fixture setup",
-  );
-  const fixture = JSON.parse(
-    readFileSync(fixturePath, "utf8"),
-  ) as BrowserFixture;
+  requireBrowserFixture();
+  const fixture = readBrowserFixture();
   const account = fixture.platformAccounts.find(
     (item) => item.projectName === testInfo.project.name,
   );
@@ -454,17 +467,12 @@ test("platform-only privileged identity receives no tenant workspace", async ({
   expect(errors).toEqual([]);
 });
 
-test("tenant Commander first login completes TOTP enrollment", async ({
+test("@acceptance tenant Commander first login completes TOTP enrollment", async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
-  test.skip(
-    !existsSync(fixturePath),
-    "Set PBSSU_TEST_DATABASE_STATE for synthetic HTTP fixture setup",
-  );
-  const fixture = JSON.parse(
-    readFileSync(fixturePath, "utf8"),
-  ) as BrowserFixture;
+  requireBrowserFixture();
+  const fixture = readBrowserFixture();
   const enrollmentAccount =
     testInfo.project.name === "desktop-edge"
       ? { email: fixture.enrollEmail, password: fixture.enrollPassword }
