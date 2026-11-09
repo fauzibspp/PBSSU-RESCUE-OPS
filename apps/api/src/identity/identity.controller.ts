@@ -3,7 +3,10 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
+  HttpCode,
+  InternalServerErrorException,
   Param,
   Post,
   PipeTransform,
@@ -14,6 +17,7 @@ import { parseCookie } from "cookie";
 import type { Response } from "express";
 import { IdentityService } from "./identity.service.js";
 import { loadEnvironment } from "../config.js";
+import { isTrustedCookieReadRequest } from "../security/browser-request.js";
 
 function bindingValue(value: string | undefined): string {
   if (!value || Buffer.from(value, "base64url").length < 32) {
@@ -55,6 +59,9 @@ export class IdentityController {
     cookieHeader: string | undefined,
     csrf: string | undefined,
     origin: string | undefined,
+    referer: string | undefined = undefined,
+    fetchSite?: string,
+    originlessRead = false,
   ): Promise<string> {
     const cookies = parseCookie(cookieHeader ?? "");
     const access = cookies["__Host-pbssu_access"];
@@ -62,8 +69,15 @@ export class IdentityController {
       return bearerToken(authorization);
     }
     const binding = cookies["__Host-pbssu_binding"];
+    const trustedRequest = isTrustedCookieReadRequest(
+      origin,
+      referer,
+      fetchSite,
+      trustedOrigin(),
+      originlessRead,
+    );
     if (
-      origin !== trustedOrigin() ||
+      !trustedRequest ||
       !binding ||
       !csrf ||
       csrf !== cookies["__Host-pbssu_csrf"]
@@ -75,11 +89,17 @@ export class IdentityController {
   }
 
   @Post("auth/login")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   login(@Body(new JsonObjectPipe()) body: Record<string, unknown>) {
     return this.identity.login(body);
   }
 
   @Post("auth/refresh")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async refreshSession(
     @Headers("x-refresh-token") refreshHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
@@ -155,14 +175,26 @@ export class IdentityController {
   }
 
   @Get("auth/sessions")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async listSessions(
     @Headers("authorization") authorization: string | undefined,
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listSessions(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        referer,
+        fetchSite,
+        true,
+      ),
     );
   }
 
@@ -242,6 +274,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/enrollments")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   startMfaEnrollment(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -295,18 +330,32 @@ export class IdentityController {
   }
 
   @Get("auth/mfa")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async getMfaStatus(
     @Headers("authorization") authorization: string | undefined,
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.getMfaStatus(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        referer,
+        fetchSite,
+        true,
+      ),
     );
   }
 
   @Get("me/memberships")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async listMyMemberships(
     @Headers("authorization") authorization: string | undefined,
     @Query("cursor") cursor: string | undefined,
@@ -314,9 +363,19 @@ export class IdentityController {
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
+    @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listMyMemberships(
-      await this.authenticatedToken(authorization, cookieHeader, csrf, origin),
+      await this.authenticatedToken(
+        authorization,
+        cookieHeader,
+        csrf,
+        origin,
+        referer,
+        fetchSite,
+        true,
+      ),
       cursor,
       limit,
     );
@@ -365,6 +424,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/enrollments/confirm")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   confirmMfaEnrollment(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -373,6 +435,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/verify")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   verifyMfa(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -417,6 +482,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/replacement")
+  @HttpCode(202)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async startMfaReplacement(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("authorization") authorization: string | undefined,
@@ -431,6 +499,9 @@ export class IdentityController {
   }
 
   @Post("auth/mfa/replacement/confirm")
+  @HttpCode(200)
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   confirmMfaReplacement(
     @Body(new JsonObjectPipe()) body: Record<string, unknown>,
     @Headers("x-auth-challenge-binding") binding: string | undefined,
@@ -467,12 +538,33 @@ export class IdentityController {
       response.status(204).end();
       return;
     }
+    let credentialMaterial = material;
+    if (body.purpose === "TOTP_SETUP") {
+      if (
+        material.kind !== "TOTP_SETUP" ||
+        typeof material.secret !== "string" ||
+        typeof material.enrollment_id !== "string" ||
+        typeof material.otpauth_uri !== "string" ||
+        typeof material.expires_at !== "string"
+      ) {
+        throw new InternalServerErrorException(
+          "Credential material unavailable",
+        );
+      }
+      credentialMaterial = {
+        kind: material.kind,
+        enrollment_id: material.enrollment_id,
+        totp_secret: material.secret,
+        otpauth_uri: material.otpauth_uri,
+        expires_at: material.expires_at,
+      };
+    }
     response
       .status(200)
       .setHeader(
         "Content-Type",
         "application/vnd.pbssu.credential-material+json",
       )
-      .json(material);
+      .json(credentialMaterial);
   }
 }

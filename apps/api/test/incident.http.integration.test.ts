@@ -5,6 +5,7 @@ import { NestFactory } from "@nestjs/core";
 import { Pool } from "pg";
 import { Secret, TOTP } from "otpauth";
 import { SignJWT } from "jose";
+import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { loadLocalSecrets } from "../src/identity/local-secrets.js";
@@ -37,6 +38,9 @@ const assignmentVehicleId = randomUUID();
 const conflictVehicleId = randomUUID();
 const raceVehicleId = randomUUID();
 const platformUserId = randomUUID();
+const enrollmentUserId = randomUUID();
+const webUserId = randomUUID();
+const webMembershipId = randomUUID();
 const roleId = randomUUID();
 const roleIds = {
   INCIDENT_COMMANDER: roleId,
@@ -49,17 +53,41 @@ const email = `${userId}@example.invalid`;
 const operatorEmail = `${operatorUserId}@example.invalid`;
 const ordinaryEmail = `${ordinaryUserId}@example.invalid`;
 const platformEmail = `${platformUserId}@example.invalid`;
+const enrollmentEmail = `${enrollmentUserId}@example.invalid`;
+const webEmail = `${webUserId}@example.invalid`;
 const password = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const operatorPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const ordinaryPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const platformPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const enrollmentPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
+const webPassword = `Synthetic!${randomBytes(24).toString("base64url")}`;
 const binding = randomBytes(32).toString("base64url");
 const operatorBinding = randomBytes(32).toString("base64url");
 const ordinaryBinding = randomBytes(32).toString("base64url");
 const platformBinding = randomBytes(32).toString("base64url");
+const enrollmentBinding = randomBytes(32).toString("base64url");
 const totpSecret = new Secret({ size: 20 });
 const operatorTotpSecret = new Secret({ size: 20 });
 const platformTotpSecret = new Secret({ size: 20 });
+const webTotpSecret = new Secret({ size: 20 });
+const httpContract = JSON.parse(
+  readFileSync(
+    new URL("../../../docs/api/openapi.json", import.meta.url),
+    "utf8",
+  ),
+) as object;
+
+function assertContractSchema(schemaName: string, value: unknown): void {
+  const validator = new Ajv2020({ strict: false, validateFormats: false });
+  validator.addSchema({
+    ...httpContract,
+    $id: "https://pbssu.invalid/http-contract.json",
+  });
+  const validate = validator.compile({
+    $ref: `https://pbssu.invalid/http-contract.json#/components/schemas/${schemaName}`,
+  });
+  expect(validate(value), JSON.stringify(validate.errors)).toBe(true);
+}
 let app: Awaited<ReturnType<typeof NestFactory.create>>;
 let baseUrl: string;
 let authorization: string;
@@ -169,6 +197,46 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       timeCost: 3,
       parallelism: 1,
     });
+    const enrollmentHash = await argon2.hash(enrollmentPassword, {
+      type: argon2.argon2id,
+      memoryCost: 65_536,
+      timeCost: 3,
+      parallelism: 1,
+    });
+    const webHash = await argon2.hash(webPassword, {
+      type: argon2.argon2id,
+      memoryCost: 65_536,
+      timeCost: 3,
+      parallelism: 1,
+    });
+    await owner.query(
+      `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+       values($1,$2,'synthetic-http-mfa-enrollment',now(),'ACTIVE')`,
+      [enrollmentUserId, enrollmentEmail],
+    );
+    await owner.query(
+      "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
+      [enrollmentUserId, enrollmentHash],
+    );
+    await owner.query(
+      `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
+       values($1,$2,'synthetic-http-web-cookie',now(),'ACTIVE')`,
+      [webUserId, webEmail],
+    );
+    await owner.query(
+      "insert into app.password_credentials(user_id,password_hash) values($1,$2)",
+      [webUserId, webHash],
+    );
+    await owner.query(
+      `insert into app.mfa_credentials(id,user_id,seed_ciphertext,encryption_key_ref,state,confirmed_at)
+       values($1,$2,$3,$4,'ACTIVE',now())`,
+      [
+        randomUUID(),
+        webUserId,
+        encryptSeed(webTotpSecret.base32),
+        loadLocalSecrets().keyId,
+      ],
+    );
     await owner.query(
       `insert into app.users(id,email_normalized,email_ciphertext,email_verified_at,status)
        values($1,$2,'synthetic-http-operator',now(),'ACTIVE')`,
@@ -205,6 +273,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
          values($1,$2,$3,'Synthetic HTTP Commander','ACTIVE',now())`,
         [membershipId, organizationId, userId],
       );
+      const enrollmentMembershipId = randomUUID();
       await setup.query(
         `insert into app.roles(id,organization_id,code,name) values
          ($1,$2,'INCIDENT_COMMANDER','Synthetic HTTP Commander'),
@@ -225,6 +294,16 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
          values($1,$2,$3,'Synthetic HTTP Operator','ACTIVE',now())`,
         [operatorMembershipId, organizationId, operatorUserId],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic Enrollment Commander','ACTIVE',now())`,
+        [enrollmentMembershipId, organizationId, enrollmentUserId],
+      );
+      await setup.query(
+        `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
+         values($1,$2,$3,'Synthetic WEB Cookie Commander','ACTIVE',now())`,
+        [webMembershipId, organizationId, webUserId],
       );
       await setup.query(
         `insert into app.memberships(id,organization_id,user_id,display_name,status,activated_at)
@@ -270,6 +349,16 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
           ordinaryMembershipId,
           roleIds.FIELD_RESPONDER,
         ],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3)`,
+        [organizationId, enrollmentMembershipId, roleId],
+      );
+      await setup.query(
+        `insert into app.membership_roles(organization_id,membership_id,role_id)
+         values($1,$2,$3)`,
+        [organizationId, webMembershipId, roleId],
       );
       await setup.query(
         `insert into app.membership_roles(organization_id,membership_id,role_id)
@@ -416,7 +505,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         client_binding: binding,
       }),
     });
-    expect(login.status).toBe(201);
+    expect(login.status).toBe(200);
     const loginBody = (await login.json()) as Record<string, unknown>;
     expect(
       loginBody.challenge_id,
@@ -440,7 +529,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         code: totp.generate(),
       }),
     });
-    expect(verified.status, await verified.clone().text()).toBe(201);
+    expect(verified.status, await verified.clone().text()).toBe(200);
     const handoff = (await verified.json()) as {
       handoff: { handoff_id: string };
     };
@@ -467,6 +556,357 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
   afterAll(async () => {
     await app?.close();
     await owner.end();
+  });
+
+  it("returns contract-conformant self-memberships and bound MFA enrollment metadata over HTTP", async () => {
+    const membershipsResponse = await fetch(`${baseUrl}/me/memberships`, {
+      headers: { authorization },
+    });
+    expect(membershipsResponse.status).toBe(200);
+    const membershipsBody = await membershipsResponse.json();
+    assertContractSchema("MyMembershipPage", membershipsBody);
+    expect(JSON.stringify(membershipsBody)).not.toContain("contact_ciphertext");
+
+    const loginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: enrollmentEmail,
+        password: enrollmentPassword,
+        client_kind: "MOBILE",
+        client_binding: enrollmentBinding,
+      }),
+    });
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.headers.get("cache-control")).toContain("no-store");
+    const loginBody = (await loginResponse.json()) as {
+      challenge_id: string;
+      purpose: string;
+      next_action: string;
+      authentication_state: string;
+    };
+    expect(loginBody).toMatchObject({
+      purpose: "MFA_ENROLL",
+      next_action: "ENROLL_MFA",
+      authentication_state: "CHALLENGE_REQUIRED",
+    });
+
+    const enrollmentResponse = await fetch(`${baseUrl}/auth/mfa/enrollments`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-auth-challenge-binding": enrollmentBinding,
+      },
+      body: JSON.stringify({ challenge_id: loginBody.challenge_id }),
+    });
+    expect(enrollmentResponse.status).toBe(202);
+    expect(enrollmentResponse.headers.get("cache-control")).toContain(
+      "no-store",
+    );
+    const enrollmentBody = await enrollmentResponse.json();
+    assertContractSchema("MfaEnrollment", enrollmentBody);
+    expect(JSON.stringify(enrollmentBody)).not.toMatch(
+      /secret|otpauth|recovery_code|setup_material/i,
+    );
+
+    const handoff = (enrollmentBody as { handoff: { handoff_id: string } })
+      .handoff;
+    const setupResponse = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-auth-challenge-binding": enrollmentBinding,
+        },
+        body: JSON.stringify({ purpose: "TOTP_SETUP" }),
+      },
+    );
+    expect(setupResponse.status).toBe(200);
+    expect(setupResponse.headers.get("content-type")).toContain(
+      "application/vnd.pbssu.credential-material+json",
+    );
+    const setupMaterial = (await setupResponse.json()) as {
+      enrollment_id: string;
+      totp_secret: string;
+      otpauth_uri: string;
+      expires_at: string;
+    };
+    assertContractSchema("CredentialMaterial", setupMaterial);
+    const totp = new TOTP({
+      secret: Secret.fromBase32(setupMaterial.totp_secret),
+      digits: 6,
+      period: 30,
+    });
+    const confirmation = await fetch(
+      `${baseUrl}/auth/mfa/enrollments/confirm`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-auth-challenge-binding": enrollmentBinding,
+        },
+        body: JSON.stringify({
+          challenge_id: loginBody.challenge_id,
+          enrollment_id: setupMaterial.enrollment_id,
+          code: totp.generate(),
+        }),
+      },
+    );
+    expect(confirmation.status).toBe(200);
+    expect(confirmation.headers.get("cache-control")).toContain("no-store");
+    expect(await confirmation.text()).not.toMatch(
+      /secret|otpauth|access_token|refresh_token/i,
+    );
+  });
+
+  it("supports the approved WEB cookie session contract for incident reads", async () => {
+    const webBinding = randomBytes(32).toString("base64url");
+    const origin = "http://127.0.0.1:5173";
+    const login = await fetch(`${baseUrl}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        login: webEmail,
+        password: webPassword,
+        client_kind: "WEB",
+        client_binding: webBinding,
+      }),
+    });
+    expect(login.status).toBe(200);
+    const challenge = (await login.json()) as { challenge_id: string };
+    const verification = await fetch(`${baseUrl}/auth/mfa/verify`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin,
+        "x-auth-challenge-binding": webBinding,
+      },
+      body: JSON.stringify({
+        challenge_id: challenge.challenge_id,
+        code: new TOTP({
+          secret: webTotpSecret,
+          digits: 6,
+          period: 30,
+        }).generate(),
+      }),
+    });
+    expect(verification.status).toBe(200);
+    const verified = (await verification.json()) as {
+      handoff: { handoff_id: string };
+    };
+    const redeemed = await fetch(
+      `${baseUrl}/auth/credential-handoffs/${verified.handoff.handoff_id}/redeem`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin,
+          "x-auth-challenge-binding": webBinding,
+        },
+        body: JSON.stringify({ purpose: "SESSION" }),
+      },
+    );
+    expect(redeemed.status).toBe(204);
+    const setCookies = redeemed.headers.getSetCookie();
+    expect(setCookies).toHaveLength(4);
+    for (const name of [
+      "__Host-pbssu_access",
+      "__Host-pbssu_refresh",
+      "__Host-pbssu_binding",
+      "__Host-pbssu_csrf",
+    ]) {
+      expect(setCookies.some((cookie) => cookie.startsWith(`${name}=`))).toBe(
+        true,
+      );
+    }
+    for (const cookie of setCookies) {
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).toContain("Path=/");
+      if (!cookie.startsWith("__Host-pbssu_csrf="))
+        expect(cookie).toContain("HttpOnly");
+    }
+    const cookieHeader = setCookies
+      .map((cookie) => cookie.split(";", 1)[0])
+      .join("; ");
+    const csrfCookie = setCookies.find((cookie) =>
+      cookie.startsWith("__Host-pbssu_csrf="),
+    );
+    const csrf = csrfCookie?.split(";", 1)[0]?.split("=", 2)[1];
+    expect(csrf).toBeTruthy();
+
+    const created = await fetch(`${baseUrl}/incidents`, {
+      method: "POST",
+      headers: {
+        authorization,
+        "x-organization-id": organizationId,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "Synthetic web-cookie read fixture",
+        category: "FLOOD_MONITORING",
+        occurred_at: new Date().toISOString(),
+        source_kind: "SYNTHETIC_TEST",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const incident = (await created.json()) as { id: string };
+    const headers = {
+      cookie: cookieHeader,
+      origin,
+      "x-csrf-token": csrf!,
+      "x-organization-id": organizationId,
+    };
+    const list = await fetch(`${baseUrl}/incidents`, { headers });
+    expect(list.status).toBe(200);
+    assertContractSchema("IncidentPage", await list.json());
+    const detail = await fetch(`${baseUrl}/incidents/${incident.id}`, {
+      headers,
+    });
+    expect(detail.status).toBe(200);
+    assertContractSchema("Incident", await detail.json());
+
+    const browserReadHeaders = {
+      cookie: cookieHeader,
+      "x-csrf-token": csrf!,
+      "sec-fetch-site": "same-origin",
+    };
+    const memberships = await fetch(`${baseUrl}/me/memberships?limit=20`, {
+      headers: {
+        ...browserReadHeaders,
+        referer: `${origin}/app/organizations`,
+      },
+    });
+    expect(memberships.status).toBe(200);
+    expect(memberships.headers.get("cache-control")).toContain("no-store");
+    assertContractSchema("MyMembershipPage", await memberships.json());
+    const browserList = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...browserReadHeaders,
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(browserList.status).toBe(200);
+    assertContractSchema("IncidentPage", await browserList.json());
+    expect(browserList.headers.get("cache-control")).toContain("no-store");
+    const trustedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        referer: `${origin}/app/incidents`,
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(trustedReferer.status).toBe(200);
+    const contradictoryMetadata = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(contradictoryMetadata.status).toBe(401);
+    const nullOrigin = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, origin: "null" },
+    });
+    expect(nullOrigin.status).toBe(401);
+    const untrustedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        referer: "http://127.0.0.1:5999/attacker",
+      },
+    });
+    expect(untrustedReferer.status).toBe(401);
+    const malformedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, referer: "not a URL" },
+    });
+    expect(malformedReferer.status).toBe(401);
+    const noFetchMetadata = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        cookie: cookieHeader,
+        "x-csrf-token": csrf!,
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(noFetchMetadata.status).toBe(401);
+    const sameSiteOnly = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        cookie: cookieHeader,
+        "x-csrf-token": csrf!,
+        "x-organization-id": organizationId,
+        "sec-fetch-site": "same-site",
+      },
+    });
+    expect(sameSiteOnly.status).toBe(401);
+    const crossSiteRead = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...browserReadHeaders,
+        "sec-fetch-site": "cross-site",
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(crossSiteRead.status).toBe(401);
+    const crossSiteMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: { ...browserReadHeaders, "sec-fetch-site": "cross-site" },
+      },
+    );
+    expect(crossSiteMemberships.status).toBe(400);
+    const contradictoryMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: {
+          ...browserReadHeaders,
+          origin,
+          "sec-fetch-site": "same-site",
+        },
+      },
+    );
+    expect(contradictoryMemberships.status).toBe(400);
+    const invalidMetadataMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: {
+          ...browserReadHeaders,
+          referer: "not a URL",
+        },
+      },
+    );
+    expect(invalidMetadataMemberships.status).toBe(400);
+
+    const missingCsrf = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, "x-csrf-token": "invalid" },
+    });
+    expect(missingCsrf.status).toBe(401);
+    const untrustedOrigin = await fetch(`${baseUrl}/incidents/${incident.id}`, {
+      headers: { ...headers, origin: "http://127.0.0.1:5999" },
+    });
+    expect(untrustedOrigin.status).toBe(401);
+    const forgedTenant = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, "x-organization-id": randomUUID() },
+    });
+    expect([403, 404]).toContain(forgedTenant.status);
+    const unsupportedMethod = await fetch(`${baseUrl}/incidents`, {
+      method: "DELETE",
+      headers,
+    });
+    expect(unsupportedMethod.status).toBe(404);
+    const logout = await fetch(`${baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: {
+        cookie: cookieHeader,
+        origin,
+        "x-csrf-token": csrf!,
+      },
+    });
+    expect(logout.status).toBe(204);
+    const revokedSession = await fetch(`${baseUrl}/incidents`, { headers });
+    expect(revokedSession.status).toBe(401);
+    const revokedMembershipRead = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      { headers: browserReadHeaders },
+    );
+    expect([400, 401]).toContain(revokedMembershipRead.status);
   });
 
   it("rejects missing, invalid, and tenantless authentication before data access", async () => {
@@ -526,7 +966,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         client_binding: operatorBinding,
       }),
     });
-    expect(login.status).toBe(201);
+    expect(login.status).toBe(200);
     const challenge = (await login.json()) as {
       challenge_id: string;
       purpose: string;
@@ -550,7 +990,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         }).generate(),
       }),
     });
-    expect(verified.status, await verified.clone().text()).toBe(201);
+    expect(verified.status, await verified.clone().text()).toBe(200);
     const handoff = (await verified.json()) as {
       handoff: { handoff_id: string };
     };
@@ -595,7 +1035,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         client_binding: ordinaryBinding,
       }),
     });
-    expect(login.status).toBe(201);
+    expect(login.status).toBe(200);
     const result = (await login.json()) as {
       authentication_state: string;
       handoff: { handoff_id: string };
@@ -643,7 +1083,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         client_binding: platformBinding,
       }),
     });
-    expect(login.status).toBe(201);
+    expect(login.status).toBe(200);
     const challenge = (await login.json()) as {
       challenge_id: string;
       purpose: string;
@@ -699,7 +1139,7 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         }).generate(),
       }),
     });
-    expect(verified.status).toBe(201);
+    expect(verified.status).toBe(200);
     const handoff = (await verified.json()) as {
       handoff: { handoff_id: string };
     };

@@ -1,0 +1,4 @@
+# Reviewed false positive: these are SHA-256 content digests in the contract
+# reconciliation manifest, verified against the referenced Git blobs at this
+# exact commit. Fingerprint is limited to that historical file/rule/line.
+4beb37b92122c662a35b28f5e9d74a2050abbed8:docs/testing/UF-01-CONTRACT-DELTA.json:generic-api-key:7

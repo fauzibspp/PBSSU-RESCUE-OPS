@@ -1,0 +1,11 @@
+{
+  "purpose": "Records the Project Owner-authorized bounded response-contract reconciliation required for UF-01, preserving existing operations, permissions, entities, and security controls.",
+  "authorization_date": "2026-11-08",
+  "authorization_source": "PBSSU RESCUE OPS — UF-01 CONTRACT RECOVERY AND AUTONOMOUS EXECUTION RESUME",
+  "scope": "MfaEnrollment and self-membership response schemas only, plus response HTTP status alignment for the existing login, refresh, MFA enrollment/verification, and factor-replacement operations with their already approved OpenAPI statuses.",
+  "files": {
+    "docs/api/openapi.json": "71faf38d83266937a588553810acf69f95a6d97cd791867e9e23a59406cff8a0",
+    "docs/requirements/TRACEABILITY.md": "2df2057af8bfeaedf065101e4c35b4b7fe7a7433eee17d79d7f7e960f1ecd5f9",
+    "docs/testing/TEST-STRATEGY.md": "410bef92eb0a508bae5f5a2e920d1dc36f103c852a17afe5c2d96bb3c3183206"
+  }
+}

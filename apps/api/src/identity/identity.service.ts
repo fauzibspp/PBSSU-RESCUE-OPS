@@ -3436,6 +3436,7 @@ export class IdentityService implements OnModuleDestroy {
           enrollment_id: enrollmentId,
           secret: secret.base32,
           otpauth_uri: totp.toString(),
+          expires_at: expires.toISOString(),
         }),
         loadLocalSecrets().keyId,
         expires,

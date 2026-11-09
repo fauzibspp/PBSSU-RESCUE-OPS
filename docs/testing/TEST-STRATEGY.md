@@ -10,52 +10,52 @@ All data is synthetic: two tenants, a multi-tenant user with different roles, re
 
 ## Requirement acceptance suites
 
-| Test ID | Required assertions |
-| --- | --- |
-| T-001 | Atomic organization/admin onboarding, duplicate slug, platform metadata-only access. |
-| T-002 | Login/refresh/reuse/revoke, brute-force throttling and account enumeration resistance. |
-| T-003 | Membership selection, differing tenant roles, revoked membership and cache isolation. |
-| T-004 | Tenant role grant bounds and cross-tenant role/member denial. |
-| T-005 | Personnel private-field projection and authorized profile change. |
-| T-006 | Tenant-unique vehicle call sign, retirement/history preservation. |
-| T-007 | Q-02 lifecycle edge matrix; Sprint 3 accepts DRAFT→OPEN and Commander cancellation only from DRAFT/OPEN with reason; reject unsupported and Sprint 4-dependent edges; enforce role grants, base_version, `STALE_VERSION`/`INVALID_TRANSITION`/`PREREQUISITE_UNAVAILABLE`, atomic single version increment, event+audit commit, and no mutation on conflict. |
-| T-008 | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions. |
-| T-009 | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit. |
-| T-009a | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged. |
-| T-010 | Manual assignment replacement/release history; optional nullable duty with no default and no request field; active membership; one active responder per canonical user and vehicle; tenant/RLS, concurrency, version CAS, no external dispatch; assignments remain active from DISPATCHED until a future explicit release workflow, with no Sprint 4 release or terminal transition. |
-| T-011 | Append-only movement corrections with same-incident lineage; G-07 TENANT/ASSIGNED authorization; assigned-vehicle check; server actor/received time vs human-reported occurred time; no automatic ON_SCENE transition. |
-| T-012 | Observation/risk validation, assigned-incident scope, immutable correction lineage. |
-| T-013 | Optional GPS, invalid coordinate pair/range, media checksum/type/size/malware, quarantine and cross-tenant download denial. |
-| T-014 | Encrypted outbox survives restart/offline; account/tenant partitions; local pending label. |
-| T-015 | Concurrent/repeated sync produces one mutation; altered payload same key conflicts; receipt and mutation atomic. |
-| T-016 | Stale version and dependency ordering; tombstones, cursor expiry, scope loss and safe resnapshot preserve local work. |
-| T-017 | Only commander closes COMPLETED after review; COMPLETED requires nonempty outcome; cancellation only from DRAFT/OPEN with reason; CLOSED/CANCELLED cannot reopen in MVP; report state stays independent; verify reason projection (full for authorized Commander/Operator, omitted for responder/admin/platform, auditor view deferred), unauthorized errors/notifications/logs redact it. |
-| T-018 | Required report sections/provenance and missing-data honesty; sanitized six-location scenario. |
-| T-019 | Submit freezes snapshot, self-approval blocked, reject reason, immutable approved version, correction creates revision, approval race single winner. |
-| T-020 | Approved-only PDF/text, redaction and exact revision digest, no automated sending/acknowledgement claim. |
-| T-021 | Tenant dashboard/map filtering, role visibility and stale/offline states. |
-| T-023 | Staged ONBOARDING/FIRST_ADMIN, one-time invite acceptance, verified-recipient binding, intended-role MFA, atomic activation/delegation recheck and no pending/inactive/foreign-tenant activation. |
-| T-024 | Bound purpose/version/nonce challenges; MFA/TOTP/code replay, replacement, reset preserving MFA, refresh ancestor reuse/races/absolute expiry and expired-access logout. |
-| T-026 | One-time handoff purpose/subject/client/version/expiry, completed-auth/MFA guards, web-cookie/native custom-media separation, replay/response-loss/refresh races, encrypted-material purge and no capture in APM/proxy/log/audit; synthetic-only authorized local mock mailbox, zero outbound/fallback, production sender disabled. |
-| T-025 | Traverse every identity success/error/page/header projection; no generic secret/hash/seed/URI/code-list/token/redirect echoes or logging/audit payloads; only the isolated C-02 handoff may release material, unavailable adapter denies. |
-| T-022 | Successful mutation audit atomicity; denied-action trail; sensitive reads/exports; append-only audit/event records and correction-by-new-event; cancellation reason access only by approved projection; no reason in generic logs/public telemetry/unauthorized notifications/errors; auditor full reason only after a separately approved authorized audit view exists. |
+| Test ID | Required assertions                                                                                                                                                                                                                                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T-001   | Atomic organization/admin onboarding, duplicate slug, platform metadata-only access.                                                                                                                                                                                                                                                                                                       |
+| T-002   | Login/refresh/reuse/revoke, brute-force throttling and account enumeration resistance.                                                                                                                                                                                                                                                                                                     |
+| T-003   | Membership selection, differing tenant roles, revoked membership and cache isolation.                                                                                                                                                                                                                                                                                                      |
+| T-004   | Tenant role grant bounds and cross-tenant role/member denial.                                                                                                                                                                                                                                                                                                                              |
+| T-005   | Personnel private-field projection and authorized profile change.                                                                                                                                                                                                                                                                                                                          |
+| T-006   | Tenant-unique vehicle call sign, retirement/history preservation.                                                                                                                                                                                                                                                                                                                          |
+| T-007   | Q-02 lifecycle edge matrix; Sprint 3 accepts DRAFT→OPEN and Commander cancellation only from DRAFT/OPEN with reason; reject unsupported and Sprint 4-dependent edges; enforce role grants, base_version, `STALE_VERSION`/`INVALID_TRANSITION`/`PREREQUISITE_UNAVAILABLE`, atomic single version increment, event+audit commit, and no mutation on conflict.                                |
+| T-008   | Parallel report allocation per org/year, year boundary in MYT, shared reference across revisions.                                                                                                                                                                                                                                                                                          |
+| T-009   | Multiple location records; explicit parent incident base_version and one atomic parent version increment; same-tenant/wrong-incident and foreign-tenant FK rejection; stable stale-version response; atomic redacted event/audit.                                                                                                                                                          |
+| T-009a  | LocationInput point/accuracy pairing: both omitted or both present; point without accuracy, explicit nulls, invalid coordinate ranges, and negative accuracy are rejected. Shared Point consumers and Location response compatibility remain unchanged.                                                                                                                                    |
+| T-010   | Manual assignment replacement/release history; optional nullable duty with no default and no request field; active membership; one active responder per canonical user and vehicle; tenant/RLS, concurrency, version CAS, no external dispatch; assignments remain active from DISPATCHED until a future explicit release workflow, with no Sprint 4 release or terminal transition.       |
+| T-011   | Append-only movement corrections with same-incident lineage; G-07 TENANT/ASSIGNED authorization; assigned-vehicle check; server actor/received time vs human-reported occurred time; no automatic ON_SCENE transition.                                                                                                                                                                     |
+| T-012   | Observation/risk validation, assigned-incident scope, immutable correction lineage.                                                                                                                                                                                                                                                                                                        |
+| T-013   | Optional GPS, invalid coordinate pair/range, media checksum/type/size/malware, quarantine and cross-tenant download denial.                                                                                                                                                                                                                                                                |
+| T-014   | Encrypted outbox survives restart/offline; account/tenant partitions; local pending label.                                                                                                                                                                                                                                                                                                 |
+| T-015   | Concurrent/repeated sync produces one mutation; altered payload same key conflicts; receipt and mutation atomic.                                                                                                                                                                                                                                                                           |
+| T-016   | Stale version and dependency ordering; tombstones, cursor expiry, scope loss and safe resnapshot preserve local work.                                                                                                                                                                                                                                                                      |
+| T-017   | Only commander closes COMPLETED after review; COMPLETED requires nonempty outcome; cancellation only from DRAFT/OPEN with reason; CLOSED/CANCELLED cannot reopen in MVP; report state stays independent; verify reason projection (full for authorized Commander/Operator, omitted for responder/admin/platform, auditor view deferred), unauthorized errors/notifications/logs redact it. |
+| T-018   | Required report sections/provenance and missing-data honesty; sanitized six-location scenario.                                                                                                                                                                                                                                                                                             |
+| T-019   | Submit freezes snapshot, self-approval blocked, reject reason, immutable approved version, correction creates revision, approval race single winner.                                                                                                                                                                                                                                       |
+| T-020   | Approved-only PDF/text, redaction and exact revision digest, no automated sending/acknowledgement claim.                                                                                                                                                                                                                                                                                   |
+| T-021   | Tenant dashboard/map filtering, role visibility and stale/offline states.                                                                                                                                                                                                                                                                                                                  |
+| T-023   | Staged ONBOARDING/FIRST_ADMIN, one-time invite acceptance, verified-recipient binding, intended-role MFA, atomic activation/delegation recheck and no pending/inactive/foreign-tenant activation.                                                                                                                                                                                          |
+| T-024   | Bound purpose/version/nonce challenges; MFA/TOTP/code replay, replacement, reset preserving MFA, refresh ancestor reuse/races/absolute expiry and expired-access logout.                                                                                                                                                                                                                   |
+| T-026   | One-time handoff purpose/subject/client/version/expiry, completed-auth/MFA guards, web-cookie/native custom-media separation, replay/response-loss/refresh races, encrypted-material purge and no capture in APM/proxy/log/audit; synthetic-only authorized local mock mailbox, zero outbound/fallback, production sender disabled.                                                        |
+| T-025   | Traverse every identity success/error/page/header projection; no generic secret/hash/seed/URI/code-list/token/redirect echoes or logging/audit payloads; only the isolated C-02 handoff may release material, unavailable adapter denies.                                                                                                                                                  |
+| T-022   | Successful mutation audit atomicity; denied-action trail; sensitive reads/exports; append-only audit/event records and correction-by-new-event; cancellation reason access only by approved projection; no reason in generic logs/public telemetry/unauthorized notifications/errors; auditor full reason only after a separately approved authorized audit view exists.                   |
 
 Sprint 3-B execution adds restricted-role PostgreSQL coverage for exact incident permission catalog keys/scopes/grants, onboarding template mapping, incident CRUD commands, optimistic concurrency races, staged lifecycle guard codes, cross-tenant denial, ciphertext-only cancellation metadata, rejection of arbitrary metadata, immutable audit writes, and rollback when encryption key loading fails. Generic list/get do not decrypt cancellation metadata; the authorized reason retrieval projection remains deferred. These are implementation checks, not proof of production key management or deployment recovery.
 
 ## Non-functional/security suites
 
-| ID | Gate |
-| --- | --- |
+| ID    | Gate                                                                                                                                                                                                                                          |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | T-N01 | Per-operation cross-tenant negative matrix: list/get/write/nested IDs/header/body spoof/raw SQL/workers/cache/media/export/sync; runtime role cannot bypass RLS, missing context denies; pool and concurrent tenant requests remain isolated. |
-| T-N02 | HTTPS/session/MFA policy, CSRF/CORS, recovery and privileged role escalation checks. |
-| T-N03 | Device/media/export privacy, secrets/key access, log redaction and minimized field projection. |
-| T-N04 | Interrupted push/pull/DB crash receipts, retry/replay horizon and queue recovery. |
-| T-N05 | Backup restoration and integrity checks; measure actual RPO/RTO against approved targets. |
-| T-N06 | BM language, screen reader/keyboard/text scaling/color-independent status and field usability; proposed web WCAG 2.2 AA checks. |
-| T-N07 | Measure proposed p95 API limits with agreed 50-concurrent-user/10-tenant/100k-incident fixture; separate upload/render budgets. |
-| T-N08 | Availability instrumentation, failure injection, health probes and alert runbook exercise; no retrospective uptime claim without measurements. |
-| T-N09 | Reproducible build, lint/type check, migration/RLS inventory, dependency/secret checks and OpenAPI conformance. |
-| T-N10 | Correlation/metrics/audit redaction and actionable failure alerts with no cross-tenant labels exposing content; prove cancellation reason never enters generic logs, public telemetry or unauthorized notifications. |
+| T-N02 | HTTPS/session/MFA policy, CSRF/CORS, recovery and privileged role escalation checks.                                                                                                                                                          |
+| T-N03 | Device/media/export privacy, secrets/key access, log redaction and minimized field projection.                                                                                                                                                |
+| T-N04 | Interrupted push/pull/DB crash receipts, retry/replay horizon and queue recovery.                                                                                                                                                             |
+| T-N05 | Backup restoration and integrity checks; measure actual RPO/RTO against approved targets.                                                                                                                                                     |
+| T-N06 | BM language, screen reader/keyboard/text scaling/color-independent status and field usability; proposed web WCAG 2.2 AA checks.                                                                                                               |
+| T-N07 | Measure proposed p95 API limits with agreed 50-concurrent-user/10-tenant/100k-incident fixture; separate upload/render budgets.                                                                                                               |
+| T-N08 | Availability instrumentation, failure injection, health probes and alert runbook exercise; no retrospective uptime claim without measurements.                                                                                                |
+| T-N09 | Reproducible build, lint/type check, migration/RLS inventory, dependency/secret checks and OpenAPI conformance.                                                                                                                               |
+| T-N10 | Correlation/metrics/audit redaction and actionable failure alerts with no cross-tenant labels exposing content; prove cancellation reason never enters generic logs, public telemetry or unauthorized notifications.                          |
 
 ## Release gates and evidence
 
@@ -65,6 +65,23 @@ Sprint 4-A database acceptance adds a dedicated fresh PostgreSQL/PostGIS environ
 
 Each feature must link requirement → operation/entity → named test → execution result. Store command, environment, date, counts and failure details; never label a planned test passed. CI adds lint/type checks, unit/integration/contract tests and frontend/mobile checks as applications exist. Migration verification includes fresh DB and upgrade from prior approved schema. API security matrix must grow with each endpoint.
 
+## UF-01 web acceptance evidence (2026-11-09)
+
+The UF-01 browser suite uses actual headed Edge against the Vite app and Nest
+HTTP API, with synthetic identities and an isolated test database. It covers
+generic login denial, privileged TOTP challenge and verification, first-login
+TOTP enrollment and purpose-bound handoff on desktop, membership/tenant
+switching, read-only incident list/detail, stale-tenant data clearing,
+unauthenticated deep-link denial, and desktop logout/revocation. The run passed
+7 tests and skipped the duplicate one-time enrollment flow in the mobile
+project. The separate desktop enrollment test passed. Screenshots contain only
+synthetic data; browser tracing, automatic screenshots and video are disabled
+for credential flows. See [UF-01 final acceptance](UF-01-FINAL-ACCEPTANCE.md).
+
+Browser evidence does not include a full axe/WCAG audit, complete manual
+screen-reader review, browser session-expiry flow, or every role permutation.
+Those gaps remain explicit and are not inferred from backend tests.
+
 Pilot gate: all required tests executed, no unresolved critical/high tenant or privacy vulnerabilities, medium residual risk accepted by named owners, restore exercise completed, approved data/operational policies and UAT sign-off. Production deployment remains separately authorized.
 
 ## M00.1 planned foundation extensions
@@ -73,7 +90,7 @@ T-003/T-004/T-N01 must include every exact permission key, role/scope combinatio
 
 ## M00.2 scope and limits
 
-Historical M00.2 aligned OpenAPI0.2.0/74 operations/39 entities; current approved OpenAPI0.3.0/75 operations/40 entities supersedes that candidate, still without application code. [Identity lifecycle](../api/IDENTITY-LIFECYCLE.md) defines SEC-ID-01–06 and declarative state guards. Structural schema fixtures, permission coverage, relationship inventory and state-catalogue checks do not execute guards/RLS/MFA. C-02 is explicitly resolved through the dedicated handoff; implement/test no generic credential delivery and no mock-mail/MFA bypass. All T-001–025/T-N01–10 suites remain planned runtime tests.
+Historical M00.2 aligned OpenAPI 0.2.0/74 operations/39 entities; current approved OpenAPI 0.3.0/75 operations/40 entities supersedes that candidate. The bounded UF-01 response reconciliation is recorded in [UF-01 contract reconciliation](../api/UF-01-CONTRACT-RECONCILIATION.md); self-membership contracts are separate from administrative Membership schemas, and MFA setup material remains restricted to the one-time purpose-bound handoff. [Identity lifecycle](../api/IDENTITY-LIFECYCLE.md) defines SEC-ID-01–06 and declarative state guards. Structural schema fixtures, permission coverage, relationship inventory and state-catalogue checks do not execute guards/RLS/MFA. C-02 is explicitly resolved through the dedicated handoff; implement/test no generic credential delivery and no mock-mail/MFA bypass. All T-001–025/T-N01–10 suites remain planned runtime tests outside the recorded execution evidence.
 
 ## Approved baseline verification boundary (2026-11-07)
 
