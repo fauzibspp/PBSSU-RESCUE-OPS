@@ -7,6 +7,8 @@
 - Branch: `feat/uf-01-secure-web-foundation`.
 - UF-01 implementation and acceptance commit:
   `046238660ddac1caf1a1b6758052cd427c1faed9`.
+- Security, accessibility and browser-hardening checkpoint:
+  `63bf89c7ca17bd2db6d5c654996453ba8037c0b4`.
 - Contract-reconciliation parent: `4beb37b92122c662a35b28f5e9d74a2050abbed8`.
 - Approved base: `origin/main` at Sprint 4 merge `6d7249b15aae43804feaf9bc0befaa4011f5d6a0`.
 - UF-01A/B/C are implemented under frozen manifest

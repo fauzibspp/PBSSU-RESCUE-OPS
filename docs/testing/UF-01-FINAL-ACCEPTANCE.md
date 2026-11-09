@@ -5,6 +5,8 @@ increments are implemented on `feat/uf-01-secure-web-foundation`. Core API,
 database, security, build and headed-browser checks passed. Limitations listed
 below remain open; this is not production readiness or deployment approval.
 
+Hardening checkpoint: `63bf89c7ca17bd2db6d5c654996453ba8037c0b4`.
+
 ## Frozen scope
 
 - Seven routes: `/login`, `/mfa`, `/mfa/enroll`, `/app`,
@@ -129,3 +131,6 @@ assistive-technology review.
   remains fail-closed pending the approved backend evidence path.
 - The UI is a read-only operational review surface and must not be represented
   as an emergency dispatch system.
+
+No push, merge, or deployment was performed. This local hardening commit does
+not authorize GitHub publication or production use.
