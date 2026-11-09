@@ -5,7 +5,7 @@
   "scope": "MfaEnrollment and self-membership response schemas only, plus response HTTP status alignment for the existing login, refresh, MFA enrollment/verification, and factor-replacement operations with their already approved OpenAPI statuses.",
   "files": {
     "docs/api/openapi.json": "71faf38d83266937a588553810acf69f95a6d97cd791867e9e23a59406cff8a0",
-    "docs/requirements/TRACEABILITY.md": "7323ab5ea5beb3d25760177105b123b567aacc541543bcf9742b5bfee457a7b0",
-    "docs/testing/TEST-STRATEGY.md": "5ccf00f23fc2b49dfa8ea15cde15f6ddc509f20949289ba606aa98b8e10bc125"
+    "docs/requirements/TRACEABILITY.md": "2df2057af8bfeaedf065101e4c35b4b7fe7a7433eee17d79d7f7e960f1ecd5f9",
+    "docs/testing/TEST-STRATEGY.md": "410bef92eb0a508bae5f5a2e920d1dc36f103c852a17afe5c2d96bb3c3183206"
   }
 }

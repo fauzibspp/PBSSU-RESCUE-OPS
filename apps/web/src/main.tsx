@@ -129,6 +129,7 @@ function App() {
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [booting, setBooting] = React.useState(true);
+  const [sessionEstablished, setSessionEstablished] = React.useState(false);
   const bootstrapStarted = React.useRef(false);
   const tenantGeneration = React.useRef(0);
 
@@ -167,6 +168,7 @@ function App() {
       setMaterial(null);
       setEnrollmentId(null);
       await loadMemberships();
+      setSessionEstablished(true);
       navigate("/app/organizations");
     },
     [loadMemberships],
@@ -184,6 +186,7 @@ function App() {
     } catch {
       setMemberships([]);
       setOrganizationId("");
+      setSessionEstablished(false);
     } finally {
       setBooting(false);
     }
@@ -425,6 +428,7 @@ function App() {
     setBinding(null);
     setMaterial(null);
     setEnrollmentId(null);
+    setSessionEstablished(false);
     setBusy(false);
     navigate("/login");
   }
@@ -440,6 +444,21 @@ function App() {
       <main className="center-page">
         <p role="status">Checking your secure session…</p>
       </main>
+    );
+
+  if (path.startsWith("/app") && sessionEstablished && !authenticated)
+    return (
+      <AuthFrame>
+        <section className="panel" role="status">
+          <p className="eyebrow">ORGANIZATION ACCESS</p>
+          <h1>No active organization access</h1>
+          <p>
+            This account has no active organization membership available in this
+            workspace.
+          </p>
+          <button onClick={() => void logout()}>Sign out</button>
+        </section>
+      </AuthFrame>
     );
 
   if (path.startsWith("/app") && !authenticated)
@@ -608,6 +627,7 @@ function App() {
         onSelect={setOrganizationId}
         onLogout={logout}
         busy={busy}
+        showIncidents={false}
       >
         <section className="panel">
           <h1>Choose an organization</h1>
@@ -635,6 +655,7 @@ function App() {
       }}
       onLogout={logout}
       busy={busy}
+      showIncidents={hasReadNav}
     >
       {path === "/app" || path === "/app/organizations" ? (
         <section className="welcome panel" aria-labelledby="page-title">
@@ -884,6 +905,7 @@ function Shell({
   onSelect,
   onLogout,
   busy,
+  showIncidents,
 }: {
   children: React.ReactNode;
   memberships: Membership[];
@@ -891,6 +913,7 @@ function Shell({
   onSelect: (id: string) => void;
   onLogout: () => void;
   busy: boolean;
+  showIncidents: boolean;
 }) {
   const selected = memberships.find(
     (item) => item.organization_id === selectedId,
@@ -941,20 +964,22 @@ function Shell({
           >
             Organizations
           </a>
-          <a
-            href="/app/incidents"
-            onClick={(event) => {
-              event.preventDefault();
-              navigate("/app/incidents");
-            }}
-            aria-current={
-              window.location.pathname.startsWith("/app/incidents")
-                ? "page"
-                : undefined
-            }
-          >
-            Incidents
-          </a>
+          {showIncidents ? (
+            <a
+              href="/app/incidents"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/app/incidents");
+              }}
+              aria-current={
+                window.location.pathname.startsWith("/app/incidents")
+                  ? "page"
+                  : undefined
+              }
+            >
+              Incidents
+            </a>
+          ) : null}
         </nav>
         <div className="sidebar-bottom">
           <p>

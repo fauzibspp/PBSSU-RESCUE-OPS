@@ -49,6 +49,7 @@
     "start:api": "npm run start --workspace @pbssu/api"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.65.0",
     "@types/express": "5.0.6",
     "@types/node": "24.10.0",

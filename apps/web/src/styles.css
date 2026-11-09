@@ -6,7 +6,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   --ink: #17352f;
-  --muted: #637871;
+  --muted: #566b63;
   --line: #d9e4de;
   --forest: #165c46;
   --forest-dark: #104535;
@@ -251,7 +251,7 @@ button:hover:not(:disabled) {
   display: flex;
   justify-content: space-between;
   padding: 20px 0 28px;
-  color: #71837a;
+  color: #53675e;
   font-size: 10px;
   letter-spacing: 0.08em;
 }
@@ -537,7 +537,7 @@ button:hover:not(:disabled) {
   justify-content: space-between;
   gap: 16px;
   padding: 28px 2px 4px;
-  color: #74867d;
+  color: #53675e;
   font-size: 10px;
 }
 .notice {
@@ -549,6 +549,7 @@ button:hover:not(:disabled) {
     max-width: 500px;
     gap: 28px;
     padding: 38px 0;
+    margin: 0 auto;
   }
   .auth-aside {
     display: none;

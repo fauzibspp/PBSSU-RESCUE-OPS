@@ -720,6 +720,13 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
         true,
       );
     }
+    for (const cookie of setCookies) {
+      expect(cookie).toContain("Secure");
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).toContain("Path=/");
+      if (!cookie.startsWith("__Host-pbssu_csrf="))
+        expect(cookie).toContain("HttpOnly");
+    }
     const cookieHeader = setCookies
       .map((cookie) => cookie.split(";", 1)[0])
       .join("; ");
@@ -766,9 +773,13 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       "sec-fetch-site": "same-origin",
     };
     const memberships = await fetch(`${baseUrl}/me/memberships?limit=20`, {
-      headers: browserReadHeaders,
+      headers: {
+        ...browserReadHeaders,
+        referer: `${origin}/app/organizations`,
+      },
     });
     expect(memberships.status).toBe(200);
+    expect(memberships.headers.get("cache-control")).toContain("no-store");
     assertContractSchema("MyMembershipPage", await memberships.json());
     const browserList = await fetch(`${baseUrl}/incidents`, {
       headers: {
@@ -778,6 +789,54 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
     });
     expect(browserList.status).toBe(200);
     assertContractSchema("IncidentPage", await browserList.json());
+    expect(browserList.headers.get("cache-control")).toContain("no-store");
+    const trustedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        referer: `${origin}/app/incidents`,
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(trustedReferer.status).toBe(200);
+    const contradictoryMetadata = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        "sec-fetch-site": "cross-site",
+      },
+    });
+    expect(contradictoryMetadata.status).toBe(401);
+    const nullOrigin = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, origin: "null" },
+    });
+    expect(nullOrigin.status).toBe(401);
+    const untrustedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        ...headers,
+        referer: "http://127.0.0.1:5999/attacker",
+      },
+    });
+    expect(untrustedReferer.status).toBe(401);
+    const malformedReferer = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, referer: "not a URL" },
+    });
+    expect(malformedReferer.status).toBe(401);
+    const noFetchMetadata = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        cookie: cookieHeader,
+        "x-csrf-token": csrf!,
+        "x-organization-id": organizationId,
+      },
+    });
+    expect(noFetchMetadata.status).toBe(401);
+    const sameSiteOnly = await fetch(`${baseUrl}/incidents`, {
+      headers: {
+        cookie: cookieHeader,
+        "x-csrf-token": csrf!,
+        "x-organization-id": organizationId,
+        "sec-fetch-site": "same-site",
+      },
+    });
+    expect(sameSiteOnly.status).toBe(401);
     const crossSiteRead = await fetch(`${baseUrl}/incidents`, {
       headers: {
         ...browserReadHeaders,
@@ -793,6 +852,27 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       },
     );
     expect(crossSiteMemberships.status).toBe(400);
+    const contradictoryMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: {
+          ...browserReadHeaders,
+          origin,
+          "sec-fetch-site": "same-site",
+        },
+      },
+    );
+    expect(contradictoryMemberships.status).toBe(400);
+    const invalidMetadataMemberships = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      {
+        headers: {
+          ...browserReadHeaders,
+          referer: "not a URL",
+        },
+      },
+    );
+    expect(invalidMetadataMemberships.status).toBe(400);
 
     const missingCsrf = await fetch(`${baseUrl}/incidents`, {
       headers: { ...headers, "x-csrf-token": "invalid" },
@@ -802,6 +882,31 @@ describe("Sprint 3 real HTTP authentication and routes", () => {
       headers: { ...headers, origin: "http://127.0.0.1:5999" },
     });
     expect(untrustedOrigin.status).toBe(401);
+    const forgedTenant = await fetch(`${baseUrl}/incidents`, {
+      headers: { ...headers, "x-organization-id": randomUUID() },
+    });
+    expect([403, 404]).toContain(forgedTenant.status);
+    const unsupportedMethod = await fetch(`${baseUrl}/incidents`, {
+      method: "DELETE",
+      headers,
+    });
+    expect(unsupportedMethod.status).toBe(404);
+    const logout = await fetch(`${baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: {
+        cookie: cookieHeader,
+        origin,
+        "x-csrf-token": csrf!,
+      },
+    });
+    expect(logout.status).toBe(204);
+    const revokedSession = await fetch(`${baseUrl}/incidents`, { headers });
+    expect(revokedSession.status).toBe(401);
+    const revokedMembershipRead = await fetch(
+      `${baseUrl}/me/memberships?limit=20`,
+      { headers: browserReadHeaders },
+    );
+    expect([400, 401]).toContain(revokedMembershipRead.status);
   });
 
   it("rejects missing, invalid, and tenantless authentication before data access", async () => {

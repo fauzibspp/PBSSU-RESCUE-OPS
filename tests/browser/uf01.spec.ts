@@ -1,21 +1,41 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { Secret, TOTP } from "otpauth";
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 const fixturePath = resolve(".cache/uf01/browser-fixture.json");
 
 type BrowserFixture = {
-  email: string;
-  password: string;
+  browserAccounts: {
+    projectName: string;
+    email: string;
+    password: string;
+    totpSecret: string;
+  }[];
   enrollEmail: string;
   enrollPassword: string;
+  mobileEnrollEmail: string;
+  mobileEnrollPassword: string;
   totpSecret: string;
   organizationA: string;
   organizationB: string;
   incidentA: string;
   incidentB: string;
+  roleOrganizations: {
+    organizationId: string;
+    organizationName: string;
+    roleCode: string;
+    roleName: string;
+    incidentTitle: string;
+  }[];
+  platformAccounts: {
+    projectName: string;
+    email: string;
+    password: string;
+    totpSecret: string;
+  }[];
 };
 
 test("sign-in page renders accessibly at supported viewport", async ({
@@ -56,6 +76,17 @@ test("sign-in page renders accessibly at supported viewport", async ({
     path: `artifacts/browser/${testInfo.project.name}-login.png`,
     fullPage: true,
   });
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    accessibility.violations.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      targets: nodes.map(({ target }) => target),
+      reasons: nodes.flatMap((node) => node.any.map(({ message }) => message)),
+    })),
+  ).toEqual([]);
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
   expect(failedRequests).toEqual([]);
@@ -85,6 +116,10 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
   const fixture = JSON.parse(
     readFileSync(fixturePath, "utf8"),
   ) as BrowserFixture;
+  const browserAccount = fixture.browserAccounts.find(
+    (item) => item.projectName === testInfo.project.name,
+  );
+  expect(browserAccount).toBeTruthy();
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
@@ -104,7 +139,7 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
     responses.push({ path, status: response.status() });
   });
   await page.goto("/login");
-  await page.getByLabel("Email address").fill(fixture.email);
+  await page.getByLabel("Email address").fill(browserAccount!.email);
   await page.getByLabel("Password").fill("Synthetic-invalid-password-only");
   const rejectedLogin = page.waitForResponse((response) =>
     new URL(response.url()).pathname.endsWith("/auth/login"),
@@ -114,14 +149,20 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
   await expect(page.getByRole("alert")).toHaveText(
     "We could not sign you in. Check your details and try again.",
   );
-  await page.getByLabel("Password").fill(fixture.password);
+  await page.getByLabel("Password").fill(browserAccount!.password);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(
     page.getByRole("heading", { name: "Verify your authenticator" }),
   ).toBeVisible();
+  const mfaAccessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    mfaAccessibility.violations.map(({ id, impact }) => ({ id, impact })),
+  ).toEqual([]);
 
   const totp = new TOTP({
-    secret: Secret.fromBase32(fixture.totpSecret),
+    secret: Secret.fromBase32(browserAccount!.totpSecret),
     digits: 6,
     period: 30,
   });
@@ -192,6 +233,15 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
   await expect(
     page.getByRole("button", { name: /Dispatch|Assign|Edit|Transition/ }),
   ).toHaveCount(0);
+  const authenticatedAccessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    authenticatedAccessibility.violations.map(({ id, impact }) => ({
+      id,
+      impact,
+    })),
+  ).toEqual([]);
 
   await page.getByLabel("Organization").selectOption(fixture.organizationB);
   await expect(
@@ -202,28 +252,77 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
     page.getByRole("button", { name: /UF01 synthetic incident south/ }),
   ).toBeVisible();
   await expect(page.getByText("UF01 synthetic incident north")).toHaveCount(0);
+  const refreshResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/auth/refresh",
+  );
+  await page.reload();
+  expect((await refreshResponse).status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "Your organization access" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /UF01 Synthetic South/ }).click();
+  await expect(
+    page.getByRole("button", { name: /UF01 synthetic incident south/ }),
+  ).toBeVisible();
+  const browserStorage = await page.evaluate(() => ({
+    localStorageKeys: Object.keys(localStorage),
+    sessionStorageKeys: Object.keys(sessionStorage),
+  }));
+  expect(browserStorage).toEqual({
+    localStorageKeys: [],
+    sessionStorageKeys: [],
+  });
   await page.screenshot({
     path: `artifacts/browser/${testInfo.project.name}-authenticated-incidents.png`,
     fullPage: true,
   });
 
-  if (testInfo.project.name === "desktop-edge") {
-    const signOutButton = page.locator(".sidebar-bottom .logout-button");
-    await expect(signOutButton).toBeVisible();
-    await expect(signOutButton).toBeEnabled();
-    const logoutResponse = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === "/api/auth/logout",
-    );
-    await signOutButton.click({ timeout: 8000 });
-    expect((await logoutResponse).status()).toBe(204);
+  for (const roleCase of fixture.roleOrganizations) {
+    await page.getByLabel("Organization").selectOption(roleCase.organizationId);
     await expect(
-      page.getByRole("heading", { name: "Sign in", exact: true }),
-    ).toBeVisible({ timeout: 10000 });
-    await page.goto("/app/incidents");
-    await expect(
-      page.getByRole("heading", { name: "Sign in to continue" }),
+      page.getByRole("heading", { name: "Your organization access" }),
     ).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: new RegExp(roleCase.organizationName),
+      })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Incidents", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".sidebar-bottom")).toContainText(
+      roleCase.roleName,
+    );
+    await expect(page.getByText("UF01 synthetic incident south")).toHaveCount(
+      0,
+    );
+    if (roleCase.roleCode === "FIELD_RESPONDER") {
+      await expect(
+        page.getByRole("heading", { name: "No incidents to display" }),
+      ).toBeVisible();
+      await expect(page.getByText(roleCase.incidentTitle)).toHaveCount(0);
+    } else {
+      await expect(
+        page.getByRole("button", { name: new RegExp(roleCase.incidentTitle) }),
+      ).toBeVisible();
+    }
   }
+
+  const signOutButton = page.locator(".sidebar-bottom .logout-button");
+  await expect(signOutButton).toBeVisible();
+  await expect(signOutButton).toBeEnabled();
+  const logoutResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/auth/logout",
+  );
+  await signOutButton.click({ timeout: 8000 });
+  expect((await logoutResponse).status()).toBe(204);
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).toBeVisible({ timeout: 10000 });
+  await page.goto("/app/incidents");
+  await expect(
+    page.getByRole("heading", { name: "Sign in to continue" }),
+  ).toBeVisible();
 
   expect(pageErrors).toEqual([]);
   const expectedDenials = responses.filter(
@@ -257,13 +356,9 @@ test("real WEB login, MFA, tenant switching, incident reads and logout", async (
   ).toBe(true);
 });
 
-test("tenant Commander first login completes TOTP enrollment", async ({
+test("platform-only privileged identity receives no tenant workspace", async ({
   page,
 }, testInfo) => {
-  test.skip(
-    testInfo.project.name !== "desktop-edge",
-    "The synthetic enrollment account is one-time and is exercised once per run",
-  );
   test.skip(
     !existsSync(fixturePath),
     "Set PBSSU_TEST_DATABASE_STATE for synthetic HTTP fixture setup",
@@ -271,6 +366,112 @@ test("tenant Commander first login completes TOTP enrollment", async ({
   const fixture = JSON.parse(
     readFileSync(fixturePath, "utf8"),
   ) as BrowserFixture;
+  const account = fixture.platformAccounts.find(
+    (item) => item.projectName === testInfo.project.name,
+  );
+  expect(account).toBeTruthy();
+  const responses: { path: string; status: number }[] = [];
+  const errors: string[] = [];
+  page.on("response", (response) => {
+    responses.push({
+      path: new URL(response.url()).pathname,
+      status: response.status(),
+    });
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/login");
+  await page.getByLabel("Email address").fill(account!.email);
+  await page.getByLabel("Password").fill(account!.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Verify your authenticator" }),
+  ).toBeVisible();
+  await page.getByLabel("Authenticator code").fill(
+    new TOTP({
+      secret: Secret.fromBase32(account!.totpSecret),
+      digits: 6,
+      period: 30,
+    }).generate(),
+  );
+  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: "No active organization access" }),
+  ).toBeVisible({ timeout: 10000 });
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/UF01 Synthetic (North|South)/)).toHaveCount(0);
+  await page.goto("/app/incidents");
+  await expect(
+    page.getByRole("heading", { name: "No active organization access" }),
+  ).toBeVisible();
+  expect(
+    responses.filter((response) => response.path === "/api/incidents"),
+  ).toHaveLength(0);
+  expect(
+    responses.some(
+      (response) =>
+        response.path === "/api/me/memberships" && response.status === 200,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(() => [localStorage.length, sessionStorage.length]),
+  ).toEqual([0, 0]);
+
+  // Model browser-side session-cookie expiration without logging or persisting
+  // cookie values. Restore them only in memory so the real sign-out path can
+  // revoke the synthetic server session afterward.
+  const activeCookies = await page.context().cookies();
+  expect(
+    activeCookies.some(
+      ({ name, httpOnly, secure }) =>
+        name === "__Host-pbssu_refresh" && httpOnly && secure,
+    ),
+  ).toBe(true);
+  await page.context().clearCookies();
+  await page.goto("/app/incidents");
+  await expect(
+    page.getByRole("heading", { name: "Sign in to continue" }),
+  ).toBeVisible();
+  expect(
+    responses.filter((response) => response.path === "/api/incidents"),
+  ).toHaveLength(0);
+  await page.context().addCookies(activeCookies);
+  await page.goto("/app/incidents");
+  await expect(
+    page.getByRole("heading", { name: "No active organization access" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).toBeVisible();
+  expect(
+    responses.some(
+      (response) =>
+        response.path === "/api/auth/logout" && response.status === 204,
+    ),
+  ).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("tenant Commander first login completes TOTP enrollment", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  test.skip(
+    !existsSync(fixturePath),
+    "Set PBSSU_TEST_DATABASE_STATE for synthetic HTTP fixture setup",
+  );
+  const fixture = JSON.parse(
+    readFileSync(fixturePath, "utf8"),
+  ) as BrowserFixture;
+  const enrollmentAccount =
+    testInfo.project.name === "desktop-edge"
+      ? { email: fixture.enrollEmail, password: fixture.enrollPassword }
+      : {
+          email: fixture.mobileEnrollEmail,
+          password: fixture.mobileEnrollPassword,
+        };
   const safeResponses: { path: string; status: number }[] = [];
   page.on("response", (response) => {
     const path = new URL(response.url()).pathname.replace(
@@ -284,14 +485,23 @@ test("tenant Commander first login completes TOTP enrollment", async ({
   });
   try {
     await page.goto("/login");
-    await page.getByLabel("Email address").fill(fixture.enrollEmail);
-    await page.getByLabel("Password").fill(fixture.enrollPassword);
+    await page.getByLabel("Email address").fill(enrollmentAccount.email);
+    await page.getByLabel("Password").fill(enrollmentAccount.password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(
       page.getByRole("heading", { name: "Set up an authenticator" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Prepare setup" }).click();
     const setupKey = await page.locator("#setup-key").innerText();
+    const enrollmentAccessibility = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      enrollmentAccessibility.violations.map(({ id, impact }) => ({
+        id,
+        impact,
+      })),
+    ).toEqual([]);
     const totp = new TOTP({
       secret: Secret.fromBase32(setupKey.trim()),
       digits: 6,

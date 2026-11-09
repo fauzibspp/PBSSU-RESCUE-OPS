@@ -17,6 +17,7 @@ import { parseCookie } from "cookie";
 import type { Response } from "express";
 import { IdentityService } from "./identity.service.js";
 import { loadEnvironment } from "../config.js";
+import { isTrustedCookieReadRequest } from "../security/browser-request.js";
 
 function bindingValue(value: string | undefined): string {
   if (!value || Buffer.from(value, "base64url").length < 32) {
@@ -58,6 +59,7 @@ export class IdentityController {
     cookieHeader: string | undefined,
     csrf: string | undefined,
     origin: string | undefined,
+    referer: string | undefined = undefined,
     fetchSite?: string,
     originlessRead = false,
   ): Promise<string> {
@@ -67,9 +69,13 @@ export class IdentityController {
       return bearerToken(authorization);
     }
     const binding = cookies["__Host-pbssu_binding"];
-    const trustedRequest =
-      origin === trustedOrigin() ||
-      (originlessRead && origin === undefined && fetchSite === "same-origin");
+    const trustedRequest = isTrustedCookieReadRequest(
+      origin,
+      referer,
+      fetchSite,
+      trustedOrigin(),
+      originlessRead,
+    );
     if (
       !trustedRequest ||
       !binding ||
@@ -169,11 +175,14 @@ export class IdentityController {
   }
 
   @Get("auth/sessions")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async listSessions(
     @Headers("authorization") authorization: string | undefined,
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
     @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listSessions(
@@ -182,6 +191,7 @@ export class IdentityController {
         cookieHeader,
         csrf,
         origin,
+        referer,
         fetchSite,
         true,
       ),
@@ -320,11 +330,14 @@ export class IdentityController {
   }
 
   @Get("auth/mfa")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async getMfaStatus(
     @Headers("authorization") authorization: string | undefined,
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
     @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.getMfaStatus(
@@ -333,6 +346,7 @@ export class IdentityController {
         cookieHeader,
         csrf,
         origin,
+        referer,
         fetchSite,
         true,
       ),
@@ -340,6 +354,8 @@ export class IdentityController {
   }
 
   @Get("me/memberships")
+  @Header("Cache-Control", "no-store")
+  @Header("Pragma", "no-cache")
   async listMyMemberships(
     @Headers("authorization") authorization: string | undefined,
     @Query("cursor") cursor: string | undefined,
@@ -347,6 +363,7 @@ export class IdentityController {
     @Headers("cookie") cookieHeader: string | undefined,
     @Headers("x-csrf-token") csrf: string | undefined,
     @Headers("origin") origin: string | undefined,
+    @Headers("referer") referer: string | undefined,
     @Headers("sec-fetch-site") fetchSite: string | undefined,
   ) {
     return this.identity.listMyMemberships(
@@ -355,6 +372,7 @@ export class IdentityController {
         cookieHeader,
         csrf,
         origin,
+        referer,
         fetchSite,
         true,
       ),

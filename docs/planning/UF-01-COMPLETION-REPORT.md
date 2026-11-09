@@ -57,27 +57,36 @@ operations are recorded in the
 ## Validation and UX
 
 Unit/contract 30/30, dedicated contract 12/12, guarded PostgreSQL integration
-44/44, scope checks for Sprint 3-A/B/C and Sprint 4, lint, typecheck, API/web
-builds, changed-file formatting, and headed Edge browser tests passed. The
-browser suite reports 7 passed / 1 skipped (one-time enrollment is run once on
-desktop); the enrollment flow separately passed in headed Edge. Actual
-commands and limitations are in
+44/44, all Sprint 3-A/B/C and Sprint 4 scope checks, lint, API/web typecheck
+and builds, full configured Prettier check, and headed Edge browser tests
+passed. The final browser suite reports 10 passed / 0 skipped across desktop
+and Pixel 7 emulation, including distinct one-time MFA enrollment accounts per
+browser project, role navigation, platform-only denial, cookie-loss recovery,
+and session logout. Axe-core WCAG 2.1 A/AA checks passed on login, MFA,
+enrollment and authenticated incident views. Redocly CLI 1.34.5 validated
+OpenAPI 3.1 with one missing `info.license` warning. Actual commands and
+limitations are in
 [`UF-01-FINAL-ACCEPTANCE.md`](../testing/UF-01-FINAL-ACCEPTANCE.md).
 
 Desktop and Pixel 7 emulation screenshots under ignored
 `artifacts/browser/` were visually inspected. The UX is responsive and
-readable for the bounded read-only flow. A complete accessibility audit was
-not performed. Repository-wide `npm run format:check` still identifies nine
-pre-existing unformatted files outside this change; every changed UF-01 file
-passes targeted Prettier.
+readable for the bounded read-only flow. The web-origin compatibility path is
+restricted to safe GETs and requires the bound session plus matching CSRF
+double-submit; mismatched Origin/Referer or Fetch Metadata, cross-site
+requests, and cookie-authenticated writes remain denied. Real HTTP regression
+tests cover those boundaries. Browser console/page errors and unexpected
+network failures were zero. Manual screen-reader review was not executed
+because a screen-reader environment was unavailable; axe automation is not a
+substitute for that review.
 
 ## Remaining gates
 
-OpenAPI 3.1 full standards validation, production logging review, production
-key management/rotation, backup/recovery ownership, M01-R01, Q-05, Q-06 and
-Q-08 remain open. Browser session-expiry and every role permutation were not
-fully exercised in browser automation; backend authorization tests remain
-authoritative. No production deployment or operational use is authorized.
+Production logging review, production key management/rotation,
+backup/recovery ownership, M01-R01, Q-05, Q-06 and Q-08 remain open. The
+browser expiry test clears browser cookies in memory and verifies the protected
+route returns to sign-in; server-side expired/revoked session behavior is
+covered by the HTTP integration suite. No production deployment or operational
+use is authorized.
 
 No push, merge, or deployment was performed. The two unrelated root
 attachments remain untracked and unstaged.
